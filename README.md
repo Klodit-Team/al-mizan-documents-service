@@ -35,7 +35,7 @@ pipeline OCR/NLP asynchrone.
 | Attribut             | Valeur                              |
 |----------------------|-------------------------------------|
 | **Port**             | `8005`                              |
-| **Base de données**  | `document_db` (MySQL 8, isolée)     |
+| **Base de données**  | `document_db` (PostgreSQL 16, isolée) |
 | **Stockage objet**   | MinIO souverain (S3-compatible)     |
 | **Messaging**        | RabbitMQ (producer + consumer)      |
 | **Framework**        | NestJS (TypeScript)                 |
@@ -63,7 +63,7 @@ pipeline OCR/NLP asynchrone.
 │              DOCUMENT SERVICE — Stack Complète                   │
 ├──────────────────────────────────────────────────────────────────┤
 │  Framework          NestJS (TypeScript)          Port: 8005      │
-│  ORM                TypeORM + MySQL 8                            │
+│  ORM                Prisma ORM + PostgreSQL 16                   │
 │  Validation         class-validator + class-transformer          │
 │  Documentation API  @nestjs/swagger (OpenAPI 3.0)                │
 ├──────────────────────────────────────────────────────────────────┤
@@ -96,6 +96,7 @@ pipeline OCR/NLP asynchrone.
 | Cohérence écosystème (Next.js front)| ✅               | ❌         | ❌         |
 | MinIO SDK mature                    | `@minio/minio-js` | `minio` Python | Basique |
 | Swagger auto-généré                 | `@nestjs/swagger`| `drf-spectacular` | `l5-swagger` |
+| ORM type-safe avec migrations       | Prisma (type-safe, migrations auto) | Django ORM | Eloquent |
 | Performance upload/download         | Très haute (streams) | Moyenne | Moyenne |
 
 ---
@@ -130,13 +131,13 @@ pipeline OCR/NLP asynchrone.
                     │     │                   │                │
                     │  ┌──▼──────────┐  ┌────▼─────────────┐  │
                     │  │  Repository │  │ Event Publisher  │  │
-                    │  │  (TypeORM)  │  │ (RabbitMQ)       │  │
+                    │  │  (Prisma)   │  │ (RabbitMQ)       │  │
                     │  └──┬──────────┘  └────┬─────────────┘  │
                     │     │                   │                │
                     └─────┼───────────────────┼────────────────┘
                           │                   │
                ┌──────────▼──────┐   ┌────────▼────────────────┐
-               │  MySQL          │   │  RabbitMQ Exchange       │
+               │  PostgreSQL     │   │  RabbitMQ Exchange       │
                │  document_db    │   │  documents.exchange      │
                └─────────────────┘   └─────────────────────────┘
                           │
@@ -150,7 +151,7 @@ pipeline OCR/NLP asynchrone.
 - **Middleware** : Validation MIME réelle (magic bytes), taille max, structure DTO
 - **Controllers** : Points d'entrée HTTP, Swagger, délégation au Service Layer
 - **Service Layer** : Logique métier (upload, hash, validation, URL présignées, PKI)
-- **Repository Layer** : Accès données via TypeORM, aucun SQL brut
+- **Repository Layer** : Accès données via Prisma Client (type-safe), migrations gérées par `prisma migrate`
 - **Event Publisher/Consumer** : Communication asynchrone via RabbitMQ
 
 ---
@@ -160,79 +161,130 @@ pipeline OCR/NLP asynchrone.
 ### 4.1 Service Documents (`document_db`)
 
 > Schéma officiel issu de la Figure 4.7 du CSL KLODIT v1.0
+> Géré via **Prisma ORM** — fichier source : `prisma/schema.prisma`
 
-```sql
--- ─────────────────────────────────────────────────────────────
--- TABLE: documents
--- Stocke les métadonnées de chaque fichier uploadé
--- Le fichier physique est dans MinIO (fichier_url = chemin objet)
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE documents (
-  id            CHAR(36)        NOT NULL,
-  owner_id      CHAR(36)        NOT NULL,            -- userId ou organisationId
-  owner_type    ENUM('USER', 'ORGANISATION') NOT NULL,
-  nom           VARCHAR(255)    NOT NULL,             -- nom lisible du fichier
-  type_mime     VARCHAR(100)    NOT NULL,             -- ex: application/pdf
-  taille_octets BIGINT,                               -- taille en bytes
-  fichier_url   VARCHAR(500)    NOT NULL,             -- chemin MinIO
-  hash_sha256   VARCHAR(64)     NOT NULL,             -- intégrité SHA-256
-  created_at    DATETIME,
+#### Prisma Schema (`prisma/schema.prisma`)
 
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_hash (hash_sha256),
-  INDEX idx_owner (owner_id, owner_type)
-);
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
 
--- ─────────────────────────────────────────────────────────────
--- TABLE: pieces_administratives
--- Pièces justificatives liées à une soumission OE
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE pieces_administratives (
-  id             CHAR(36)     NOT NULL,
-  soumission_id  CHAR(36)     NOT NULL,              -- FK vers Soumission Service
-  document_id    CHAR(36)     NOT NULL,              -- FK → documents(id)
-  type           ENUM(
-                   'NIF',
-                   'NIS',
-                   'REGISTRE_COMMERCE',
-                   'CASIER_JUDICIAIRE',
-                   'CNAS',
-                   'CASNOS',
-                   'ATTESTATION_FISCALE',
-                   'BILAN',
-                   'AUTRE'
-                 ) NOT NULL,
-  designation    VARCHAR(255),                       -- libellé libre complémentaire
-  is_valide      BOOLEAN,                            -- NULL = non encore validée
-  date_expiration DATETIME,                          -- date d'expiration de la pièce
-  created_at     DATETIME,
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
-  PRIMARY KEY (id),
-  CONSTRAINT fk_pa_document FOREIGN KEY (document_id) REFERENCES documents(id),
-  INDEX idx_soumission (soumission_id),
-  INDEX idx_type (type)
-);
+// ─────────────────────────────────────────────────────────────
+// Enum types
+// ─────────────────────────────────────────────────────────────
 
--- ─────────────────────────────────────────────────────────────
--- TABLE: ocr_analyses
--- Résultats d'analyse OCR/NLP produits par l'IA Service (8011)
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE ocr_analyses (
-  id               CHAR(36)              NOT NULL,
-  document_id      CHAR(36)              NOT NULL,   -- FK → documents(id)
-  piece_id         CHAR(36),                         -- FK → pieces_administratives(id)
-  type_analyse     ENUM('OCR', 'NLP', 'COMPLETUDE') NOT NULL,
-  texte_extrait    TEXT,                             -- texte OCR extrait
-  score_confiance  DECIMAL(5, 4),                   -- 0.0000 à 1.0000
-  is_conforme      BOOLEAN,                         -- résultat de conformité NLP
-  anomalies        TEXT,                            -- JSON sérialisé des anomalies
-  analysed_at      DATETIME,
+enum OwnerType {
+  USER
+  ORGANISATION
+}
 
-  PRIMARY KEY (id),
-  CONSTRAINT fk_ocr_document FOREIGN KEY (document_id) REFERENCES documents(id),
-  INDEX idx_document (document_id),
-  INDEX idx_piece (piece_id)
-);
+enum PieceType {
+  NIF
+  NIS
+  REGISTRE_COMMERCE
+  CASIER_JUDICIAIRE
+  CNAS
+  CASNOS
+  ATTESTATION_FISCALE
+  BILAN
+  AUTRE
+}
+
+enum TypeAnalyse {
+  OCR
+  NLP
+  COMPLETUDE
+}
+
+// ─────────────────────────────────────────────────────────────
+// Model: Document
+// Stocke les métadonnées de chaque fichier uploadé
+// Le fichier physique est dans MinIO (fichierUrl = chemin objet)
+// ─────────────────────────────────────────────────────────────
+model Document {
+  id            String    @id @default(uuid()) @db.Uuid
+  ownerId       String    @db.Uuid                        // userId ou organisationId
+  ownerType     OwnerType
+  nom           String    @db.VarChar(255)                // nom lisible du fichier
+  typeMime      String    @db.VarChar(100)                // ex: application/pdf
+  tailleOctets  BigInt?
+  fichierUrl    String    @db.VarChar(500)                // chemin MinIO
+  hashSha256    String    @unique @db.VarChar(64)         // intégrité SHA-256
+  createdAt     DateTime  @default(now())
+
+  piecesAdministratives PieceAdministrative[]
+  ocrAnalyses           OcrAnalyse[]
+
+  @@index([ownerId, ownerType])
+  @@map("documents")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Model: PieceAdministrative
+// Pièces justificatives liées à une soumission OE
+// ─────────────────────────────────────────────────────────────
+model PieceAdministrative {
+  id             String    @id @default(uuid()) @db.Uuid
+  soumissionId   String    @db.Uuid                      // référence vers Soumission Service
+  documentId     String    @db.Uuid
+  type           PieceType
+  designation    String?   @db.VarChar(255)              // libellé libre complémentaire
+  isValide       Boolean?                                // null = non encore validée
+  dateExpiration DateTime?                               // date d'expiration de la pièce
+  createdAt      DateTime  @default(now())
+
+  document    Document     @relation(fields: [documentId], references: [id])
+  ocrAnalyses OcrAnalyse[]
+
+  @@index([soumissionId])
+  @@index([type])
+  @@map("pieces_administratives")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Model: OcrAnalyse
+// Résultats d'analyse OCR/NLP produits par l'IA Service (8011)
+// ─────────────────────────────────────────────────────────────
+model OcrAnalyse {
+  id              String       @id @default(uuid()) @db.Uuid
+  documentId      String       @db.Uuid
+  pieceId         String?      @db.Uuid
+  typeAnalyse     TypeAnalyse
+  texteExtrait    String?      @db.Text                  // texte OCR extrait
+  scoreConfiance  Decimal?     @db.Decimal(5, 4)         // 0.0000 à 1.0000
+  isConforme      Boolean?
+  anomalies       Json?                                  // tableau JSON des anomalies
+  analysedAt      DateTime     @default(now())
+
+  document Document            @relation(fields: [documentId], references: [id])
+  piece    PieceAdministrative? @relation(fields: [pieceId], references: [id])
+
+  @@index([documentId])
+  @@index([pieceId])
+  @@map("ocr_analyses")
+}
+```
+
+#### Commandes Prisma
+
+```bash
+# Générer le client Prisma après modification du schéma
+npx prisma generate
+
+# Créer et appliquer une migration
+npx prisma migrate dev --name init
+
+# Appliquer les migrations en production
+npx prisma migrate deploy
+
+# Visualiser la BDD
+npx prisma studio
 ```
 
 ---
@@ -451,7 +503,7 @@ Acteur → GET /api/v1/documents/{id}/download
 | Risque OWASP | Contrôle implémenté |
 |-------------|---------------------|
 | **A01 Broken Access Control** | RBAC via session Gateway ; vérification ownership sur chaque document ; accès public uniquement sur CDC publiés |
-| **A03 Injection** | TypeORM paramétré (aucun SQL brut) ; class-validator sur tous les DTOs |
+| **A03 Injection** | Prisma Client (requêtes paramétrées, aucun SQL brut) ; class-validator sur tous les DTOs |
 | **A04 Insecure Design** | Validation magic bytes (file-type) en plus du MIME déclaré ; MinIO bucket isolé |
 | **A05 Security Misconfiguration** | Helmet (headers HTTP) ; CORS strict ; TLS 1.3 only |
 | **A07 Auth Failures** | Authentification déléguée au Gateway ; sessions Redis côté serveur |
@@ -512,7 +564,7 @@ GET    /documents/administrative/piece/:pieceId/ocr   Résultats OCR d'une pièc
 
 ```
 GET    /health                                    Health check (liveness)
-GET    /health/ready                              Readiness check (MySQL + MinIO + RabbitMQ)
+GET    /health/ready                              Readiness check (PostgreSQL + MinIO + RabbitMQ)
 ```
 
 ---
@@ -602,26 +654,27 @@ services:
     ports:
       - "8005:8005"
     environment:
-      DB_HOST: mysql-document
-      DB_NAME: document_db
+      DATABASE_URL: postgresql://postgres:postgres@postgres-document:5432/document_db
       MINIO_ENDPOINT: minio:9000
       RABBITMQ_URL: amqp://rabbitmq:5672
       REDIS_URL: redis://redis:6379
     depends_on:
-      - mysql-document
+      - postgres-document
       - minio
       - rabbitmq
       - redis
 
-  mysql-document:
-    image: mysql:8.0
+  postgres-document:
+    image: postgres:16-alpine
     environment:
-      MYSQL_DATABASE: document_db
+      POSTGRES_DB: document_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
-      - doc-mysql-data:/var/lib/mysql
+      - doc-postgres-data:/var/lib/postgresql/data
 
 volumes:
-  doc-mysql-data:
+  doc-postgres-data:
 ```
 
 ### Kubernetes (PROD) — Namespace `core`
