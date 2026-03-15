@@ -1,10 +1,27 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from './prisma/prisma.module';
+import { StorageModule } from './storage/storage.module';
+import { CachingModule } from './caching/caching.module';
+import { MessagingModule } from './messaging/messaging.module';
+import { DocumentsModule } from './documents/documents.module';
+import { OcrModule } from './ocr/ocr.module';
+import { PkiModule } from './pki/pki.module';
 
 @Module({
-  imports: [],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    PrismaModule,
+    StorageModule,
+    CachingModule,
+    MessagingModule,
+    DocumentsModule,
+    OcrModule,
+    PkiModule,
+  ],
+  controllers: [],
+  providers: [],
 })
-export class AppModule {}
+export class AppModule { }
