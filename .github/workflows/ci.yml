@@ -66,6 +66,6 @@ jobs:
           COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | awk '{printf "%s\\n", $0}')
           curl -H "Content-Type: application/json" \
           -d "{
-            \"content\": \"✅ **Succès du Pipeline CI/CD - Al-Mizan (Microservice Appels d'Offres)** 🚀\n\n👤 **Auteur:** \`${{ github.actor }}\`\n📝 **Mise à jour (Ce qui a été ajouté):**\n\`\`\`\n$COMMIT_MSG\`\`\`\n🔗 **Voir le commit:** ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}\"
+            \"content\": \"✅ **Succès du Pipeline CI/CD - Al-Mizan (Microservice Documents)** 🚀\n\n👤 **Auteur:** \`${{ github.actor }}\`\n📝 **Mise à jour (Ce qui a été ajouté):**\n\`\`\`\n$COMMIT_MSG\`\`\`\n🔗 **Voir le commit:** ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}\"
           }" \
           "$DISCORD_WEBHOOK"

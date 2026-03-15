@@ -1,24 +1,63 @@
 # Phase 2 : Pièces Administratives & URL Présignées (S7-S8)
 
 ## Résumé
-Pendant cette phase, nous relions l'application au concept spécifique des Marchés Publics : joindre les "Pièces Administratives" à une "Soumission" via l'Operateur Economique (OE). Nous implémenterons aussi le contrôle et la génération de liens présignés afin que ces pièces puissent être consultées depuis le flux front, sans jamais que le flux métier ne s'occupe de faire *Passe-Plat* de documents.
+Associer les documents bruts (uploadés plus tôt) à la structuration métier des appels d'offres : les "Pièces Administratives". Nous mettons en œuvre un téléchargement sécurisé via liens éphémères générés par le SDK MinIO et couplés à Redis, afin de ne pas engorger notre bande passante Gateway avec des gros fichiers.
 
-## User Stories associées (issues du Backlog) :
-* [`DOC-03`] **Joindre les pièces administratives** : En tant qu'OE, je veux joindre mes pièces (NIF, NIS, RC, Casier, CNAS, CASNOS, Att. fiscale, Bilan) à ma soumission afin de justifier mon éligibilité.
-* [`DOC-02`] **Consulter / Télécharger un document** : En tant qu'utilisateur, je veux consulter ou télécharger un document via URL présignée MinIO afin d'accéder à son contenu sans exposer le stockage direct.
-* [`DOC-08`] **Générer URL présignée temporaire** : En tant que système, je veux générer une URL présignée MinIO (TTL configurable) afin de permettre le téléchargement direct sans double transit serveur.
-* [`DOC-09`] **Vérifier intégrité d'un document** : En tant que système, je veux recalculer et comparer le hash SHA-256 d'un document stocké afin de détecter toute altération post-upload.
+## User Stories associées
+* [`DOC-03`] **Joindre les pièces administratives** : En tant qu'OE, je veux joindre mes pièces (NIF, NIS...).
+* [`DOC-02`] **Consulter / Télécharger un document** : ... via URL présignée MinIO ...
+* [`DOC-08`] **Générer URL présignée temporaire** : ... (TTL configurable) ...
+* [`DOC-09`] **Vérifier intégrité d'un document** : ... recalculer hash SHA-256 post-upload.
 
-## Tâches Techniques & Étapes :
-- [ ] 1. Mettre en place la mécanique de téléchargement `GET /api/v1/documents/:id/download`.
-     * Configurer Redis (`ioredis`).
-     * Vérifier si la clé de cache `presignedUrl:{documentId}` existe et n'est pas expirée (TTL).
-     * S'il y a un `MISS`, appeler le service Minio (méthode de hash URL expirable) en définissant un délai métier.
-- [ ] 2. Paramétrer et vérifier les ACL. Seul le propriétaire ou le comité des Marchés doit avoir le droit de téléchargement.
-- [ ] 3. Créer le endpoint `POST /api/v1/documents/administrative/:submissionId`.
-     * Recevoir l'ID Document (récemment uploadé lors de la Phase 1) et le type de pièce parmi un Enum `[NIF, NIS, ... ]`.
-     * Associer les éléments dans la table `PieceAdministrative` avec son paramètrage métier.
-- [ ] 4. Ajouter le support de requete vers la verification de Hash externe (SHA-256). Il faut implémenter `GET /api/v1/documents/:id/integrity` : Recupérer en flux le document de Minio, calculer un hachage en live, le comparer avec le hachage sécurisé persisté dans DB.
+## Structure de Fichiers à Créer (src/)
+```
+src/
+├── common/
+│   └── caching/
+│       ├── redis.module.ts              # Instanciation de ioredis
+│       └── redis.service.ts             # Service générique SET / GET
+├── documents/
+│   └── administrative-pieces/
+│       ├── administrative-pieces.module.ts
+│       ├── administrative-pieces.controller.ts  # Endpoints dédiés aux pièces
+│       ├── administrative-pieces.service.ts     # Logique de création/attachement
+│       └── dto/
+│           └── attach-piece.dto.ts      # DTO: { documentId, type, designation }
+└── [...existant]
+```
 
----
-**Points d’attention :** Ne jamais générer une URL expirant dans > 5 min pour les contrats confidentiels. Il est indispensable de cachetiser la clé de l'URL Minio dans Redis pour minimiser les appels réseaux.
+## Tâches Techniques & Détails d'Implémentation :
+
+### 1. Redis Module (`src/common/caching/`)
+*   Installer et configurer le module Redis (ex: avec `ioredis` ou `@nestjs/cache-manager`).
+*   Créer les méthodes wrapper `async setWithTTL(key: string, value: string, ttlSeconds: number)` et `async get(key: string)`. Ne pas oublier de gérer les erreurs de connexion Redis pour permettre une tolérance de pannes (graceful fallback).
+
+### 2. Génération des URL Présignées (`GET /api/v1/documents/:id/download`)
+*   **Contrôleur** (`DocumentsController`) :
+    * Accepter `id` comme UUID.
+*   **Service** (`DocumentsService` + `StorageService`) :
+    1. Récupérer le `Document` depuis Prisma. (Erreur 404 si introuvable).
+    2. Interroger Redis avec la clé : `presignedUrl:${documentId}`.
+        *   Si trouvé (HIT) => Renvoyer directement la valeur URL.
+        *   Si introuvable (MISS) => Appeler `minioClient.presignedGetObject(bucketName, document.fichierUrl, expiryInSeconds)`.
+    3. Définir une variable globale config pour `expiryInSeconds` (ex: 300s = 5 minutes pour pièces sensibles).
+    4. Enregistrer dans Redis cette URL générée avec comme limite mémoire ce même temps d'expiration `expiryInSeconds`.
+    5. Retourner l'URL structurée dans un JSON : `{ "url": "...", "expiresAt": <timestamp> }`.
+
+### 3. Attachement de Pièces Administratives (`POST /api/v1/documents/administrative/:submissionId`)
+*   **Contrôleur** (`AdministrativePiecesController`) : 
+    * URL Param: `submissionId` (Id externe vers le microservice Soumission).
+    * Body DTO (`AttachPieceDto`) : `documentId` (requis, UUID), `type` (requis, Enum `PieceType`), `designation` (optionnel), `dateExpiration` (optionnel).
+*   **Service** :
+    1. Vérifier si un enregistrement existant de la même pièce existe déjà pour ce `submissionId`. Si la pièce de type "NIF" est déjà jointe, que faire ? (Remplacer ou refuser ? Le code doit s'aligner au métier, généralement : on refuse un doublon).
+    2. Appeler Prisma `this.prisma.pieceAdministrative.create({ data: { documentId, soumissionId, type, ... } })`.
+    3. Retourner l'enregistrement fraîchement rattaché.
+
+### 4. Job de Vérification Logique de Hash (`GET /api/v1/documents/:id/integrity`)
+*   *(Ce endpoint n'est accessible qu'aux RBAC "SYSTEM" ou "ADMIN" : il peut s'agir d'un trigger asynchrone manuel).*
+*   **Service** :
+    1. Charger `hashSha256` existant en base.
+    2. Streamer le fichier ciblé via `minioClient.getObject(bucket, fileUrl)`.
+    3. Le wrapper dynamiquement via Node.js dans `crypto.createHash('sha256')`.
+    4. Obtenir le résultat sous chaine hexadécimale, et appeler une fonction `boolean (result == expected)`.
+    5. *(Bonus)* Logguer une trace rouge brique ou alerter l'admin dans la DB / Terminal si altération détectée.

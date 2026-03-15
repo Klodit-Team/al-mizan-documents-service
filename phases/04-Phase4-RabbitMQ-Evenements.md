@@ -1,21 +1,44 @@
-# Phase 4 : RabbitMQ, Asynchronisme & Événements (S10)
+# Phase 4 : Asynchronisme structuré (RabbitMQ & IA OCR) (S10)
 
 ## Résumé
-Pour faire correspondre notre logique de Marchés Publics aux services environnants (Audit Inaltérable, AI Service (OCR/NLP), Notification), nous allons lier notre service aux files d'attentes via **RabbitMQ**.
+Ce module gère le raccordement du microservice Document avec tout le reste de l'écosystème asynchrone de `Al-Mizan`. Nous publions et souscrivons à une messagerie basée sur AMQP via RabbitMQ, particulièrement concernant le pipeline d'analyses IA (OCR) exigé par l'Art. 73.
 
-## User Stories associées (issues du Backlog) :
-* [`DOC-05`] **Déclencher pipeline OCR/NLP** : En tant que système, je veux publier un événement après upload afin que l'IA Service (8011) analyse la conformité de la pièce.
-* [`DOC-06`] **Consulter résultats OCR** : En tant que membre de commission, je veux consulter le score de confiance, la conformité et les anomalies OCR afin de prendre une décision éclairée.
+## User Stories associées
+* [`DOC-05`] **Déclencher pipeline OCR/NLP** : ... publier un événement après upload afin que l'IA Service analyse la conformité.
+* [`DOC-06`] **Consulter résultats OCR** : ... membre de commission veut consulter le score de confiance OCR ...
 
-## Tâches Techniques & Étapes :
-- [ ] 1. Préparer le Setup `@nestjs/microservices` + un `RabbitMQ Client` et gérer les connexions via le `.env` de production. Configurer l'exchange `documents.exchange` avec la directive `topic`.
-- [ ] 2. Générer les *Emiters* d'évenements quand l'upload a fini (depuis la phase 1): `document.uploaded` au format `{documentId, hash, mimeType, size}`.
-- [ ] 3. Générer les *Emiters* lors de modifications métier (depuis la phase 3): `document.administrative.attached` et `document.ocr.requested`, à la validation `document.validated`, ou si un téléchargement d’URL Minio à lieu `document.downloaded` pour un track d'audit.
-- [ ] 4. Mettre en place les *Consumers* pour réagir au fil OCR.
-     * Ecouter la queue RabbitMQ locale : `documents.ocr.results`.
-     * Recevoir la spec Json : `{documentId, pieceId, typeAnalyse, texteExtrait, scoreConfiance, isConforme, anomalies[]}`
-     * Enregistrer dans table `OcrAnalyse`.
-- [ ] 5. Mettre à disposition le endpoint `GET /api/v1/documents/:id/ocr` pour que la Commission vienne y consulter la donnée.
+## Structure de Fichiers à Créer (src/)
+```
+src/
+├── messaging/
+│   ├── messaging.module.ts             # Module global RabbitMQ
+│   ├── messaging.service.ts            # ClientProxy NestJS pour l'EventEmitter
+│   └── event.interfaces.ts             # Typages stricts des Payload échangés
+├── ocr/
+│   ├── ocr.module.ts
+│   ├── ocr.controller.ts               # Listener Rabbit (@MessagePattern / @EventPattern) ET Http endpoint
+│   └── ocr.service.ts                  # Requête Prisma vers table OcrAnalyse
+└── [...existant]
+```
 
----
-**Points d’attention :** Art. 7 du règlement oblige un enregistrement d’information à l’Audit, cette étape avec Exchange Topic permet d'emettre tout ce qui peut être récupéré sans attrait en backend par `Audit Service`. Ne jamais bloquer le fil d’exécution du contrôleur originel (`Async`).
+## Tâches Techniques & Détails d'Implémentation :
+
+### 1. Intégration AMQP Microservices (@nestjs/microservices)
+*   **`main.ts`** : En plus du démarrage classique HTTP `app.listen(8005)`, lier le microservice TCP/RabbitMQ en hybrid app (`app.connectMicroservice({...RabbitMQ Options})` -> `app.startAllMicroservices()`).
+*   **`MessagingModule`** : Enregistrer un module utilisant la directive `ClientsModule.register([{ name: 'RABBITMQ_CLIENT', transport: Transport.RMQ, options: { urls: [process.env.RABBITMQ_URL], queue: 'documents.exchange', noAck: false } }])`.
+
+### 2. Publication d'Événements (Producers)
+*   Créer le wrapper `MessagingService.publishToQueue(routingKey, pattern, data)` qui invoque localement `this.rabbitmqClient.emit(pattern, data)`.
+*   Modifier `DocumentsService` (Phase 1) pour qu'à la fin de la fonction `upload`, il lance (sans variable d'attente `await`, c'est asynchrone non-blocant) `MessagingService.publishToQueue('document.uploaded', payload)`.
+*   Idem dans l'Administrative Service (Phase 2), lancer `document.administrative.attached` et surtout `document.ocr.requested` selon les Payloads stricts de la matrice dans le ReadMe section 7.
+
+### 3. Écouteurs de Message (Consumers OCR - IA Service)
+*   Créer le Contrôleur RabbitMQ de l'OCR (`OcrController`). Il ne réagit pas à HTTP mais via `@EventPattern('documents.ocr.results')` ou sur la file déclarée localement.
+*   **Logique Consumer (`OcrService`)** : 
+    1. Récupérer le Payload entrant `Json`.
+    2. Valider le schéma du Dto (car cela provient d'un autre microservice non-typé : sécurité stricte).
+    3. Exécuter un `upsert` ou `create` Prisma de table `OcrAnalyse`.
+    4. Enregistrer la conformité ou les anomalies OCR fournies.
+
+### 4. Visualisation `GET /api/v1/documents/:id/ocr` & `GET /api/v1/documents/administrative/piece/:pieceId/ocr`
+*   Concevoir deux endpoints http classiques HTTP GET : (REST). Leurs rôles est uniquement d'exécuter Prisma `findMany` filtré sur un `documentId` ou un `pieceId`, et de rapporter ce format en JSON clair avec HTTP 200 à la commission de Marché Publics front-end. Mettre derrière une sécurité `@Roles('ADMIN', 'SERVICE_CONTRACTANT', 'COMMISSION_OUVERTURE', 'CONTROLEUR')`.
