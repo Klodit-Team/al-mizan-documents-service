@@ -1,0 +1,46 @@
+name: CI/CD Pipeline
+
+on:
+    push:
+        branches:
+            - main
+            - "feature/*"
+    pull_request:
+        branches:
+            - main
+
+jobs:
+    lint-and-test:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v3
+
+            - name: Use Node.js
+              uses: actions/setup-node@v3
+              with:
+                  node-version: "18.x"
+                  cache: "npm"
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Run ESLint
+              run: npm run lint
+
+            - name: Run Unit Tests with coverage (>=80%)
+              run: npm run test:cov
+
+            - name: Run Integration / e2e Tests
+              run: npm run test:e2e
+
+    build-docker:
+        needs: lint-and-test
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/main'
+
+        steps:
+            - uses: actions/checkout@v3
+
+            - name: Build Docker image multi-stage
+              run: docker build -t document-service .

@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OwnerType {
+  USER
+  ORGANISATION
+}
+
+enum PieceType {
+  NIF
+  NIS
+  REGISTRE_COMMERCE
+  CASIER_JUDICIAIRE
+  CNAS
+  CASNOS
+  ATTESTATION_FISCALE
+  BILAN
+  AUTRE
+}
+
+enum TypeAnalyse {
+  OCR
+  NLP
+  COMPLETUDE
+}
+
+model Document {
+  id            String    @id @default(uuid()) @db.Uuid
+  ownerId       String    @db.Uuid
+  ownerType     OwnerType
+  nom           String    @db.VarChar(255)
+  typeMime      String    @db.VarChar(100)
+  tailleOctets  BigInt?
+  fichierUrl    String    @db.VarChar(500)
+  hashSha256    String    @unique @db.VarChar(64)
+  createdAt     DateTime  @default(now())
+
+  piecesAdministratives PieceAdministrative[]
+  ocrAnalyses           OcrAnalyse[]
+
+  @@index([ownerId, ownerType])
+  @@map("documents")
+}
+
+model PieceAdministrative {
+  id             String    @id @default(uuid()) @db.Uuid
+  soumissionId   String    @db.Uuid
+  documentId     String    @db.Uuid
+  type           PieceType
+  designation    String?   @db.VarChar(255)
+  isValide       Boolean?
+  dateExpiration DateTime?
+  createdAt      DateTime  @default(now())
+
+  document    Document     @relation(fields: [documentId], references: [id])
+  ocrAnalyses OcrAnalyse[]
+
+  @@index([soumissionId])
+  @@index([type])
+  @@map("pieces_administratives")
+}
+
+model OcrAnalyse {
+  id              String       @id @default(uuid()) @db.Uuid
+  documentId      String       @db.Uuid
+  pieceId         String?      @db.Uuid
+  typeAnalyse     TypeAnalyse
+  texteExtrait    String?      @db.Text
+  scoreConfiance  Decimal?     @db.Decimal(5, 4)
+  isConforme      Boolean?
+  anomalies       Json?
+  analysedAt      DateTime     @default(now())
+
+  document Document            @relation(fields: [documentId], references: [id])
+  piece    PieceAdministrative? @relation(fields: [pieceId], references: [id])
+
+  @@index([documentId])
+  @@index([pieceId])
+  @@map("ocr_analyses")
+}
