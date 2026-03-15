@@ -1,46 +1,71 @@
 name: CI/CD Pipeline
 
 on:
-    push:
-        branches:
-            - main
-            - "feature/*"
-    pull_request:
-        branches:
-            - main
+  push:
+    branches:
+      - main
+      - "feature/*"
+  pull_request:
+    branches:
+      - main
 
 jobs:
-    lint-and-test:
-        runs-on: ubuntu-latest
+  lint-and-test:
+    runs-on: ubuntu-latest
 
-        steps:
-            - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-            - name: Use Node.js
-              uses: actions/setup-node@v3
-              with:
-                  node-version: "18.x"
-                  cache: "npm"
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18.x"
+          cache: "npm"
 
-            - name: Install dependencies
-              run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-            - name: Run ESLint
-              run: npm run lint
+      - name: Run ESLint
+        run: npm run lint
 
-            - name: Run Unit Tests with coverage (>=80%)
-              run: npm run test:cov
+      - name: Run Unit Tests with coverage (>=80%)
+        run: npm run test:cov
 
-            - name: Run Integration / e2e Tests
-              run: npm run test:e2e
+      - name: Run Integration / e2e Tests
+        run: npm run test:e2e
 
-    build-docker:
-        needs: lint-and-test
-        runs-on: ubuntu-latest
-        if: github.ref == 'refs/heads/main'
+  build-docker:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
 
-        steps:
-            - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-            - name: Build Docker image multi-stage
-              run: docker build -t document-service .
+      - name: Build Docker image multi-stage
+        run: docker build -t document-service .
+
+  notify-discord:
+    needs: [lint-and-test, build-docker]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      #--- NOTIFICATION DISCORD ---
+      - name: 📢 Notifier l'équipe sur Discord
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          # Si le webhook n'est pas configuré, on ne fait rien
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "La variable DISCORD_WEBHOOK n'est pas définie."
+            exit 0
+          fi
+          # Nettoyage du message de commit pour qu'il soit propre en JSON
+          COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | awk '{printf "%s\\n", $0}')
+          curl -H "Content-Type: application/json" \
+          -d "{
+            \"content\": \"✅ **Succès du Pipeline CI/CD - Al-Mizan (Microservice Appels d'Offres)** 🚀\n\n👤 **Auteur:** \`${{ github.actor }}\`\n📝 **Mise à jour (Ce qui a été ajouté):**\n\`\`\`\n$COMMIT_MSG\`\`\`\n🔗 **Voir le commit:** ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}\"
+          }" \
+          "$DISCORD_WEBHOOK"
