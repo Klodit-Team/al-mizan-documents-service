@@ -1,12 +1,31 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+// =========================================================
+// src/modules/documents/documents.service.ts
+// =========================================================
+
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  Logger,
+  InternalServerErrorException,
+  Inject,
+} from '@nestjs/common';
+import * as crypto from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
+import type { Redis } from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
-import { CachingService } from '../../caching/caching.service';
+import { UploadDocumentDto } from './dto/upload-document.dto';
+import {
+  UploadResponseDto,
+  PresignedUrlResponseDto,
+  DocumentMetaResponseDto,
+} from './dto/document-response.dto';
+import { PRESIGNED_URL_TTL } from '../../common/config/minio.config';
 import { DocumentEventPublisher } from '../../messaging/publishers/document-event.publisher';
-import * as crypto from 'crypto';
+import { CachingService } from '../../caching/caching.service';
 
-// TTL par défaut selon le type (en secondes)
-const TTL_DEFAULT = 30 * 60; // 30 min (documents publics type CDC)
+const REDIS_KEY_PREFIX = 'presignedUrl';
 
 @Injectable()
 export class DocumentsService {
@@ -14,53 +33,167 @@ export class DocumentsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly storage: StorageService,
-    private readonly cache: CachingService,
+    private readonly storageService: StorageService,
+    @Inject('REDIS_CLIENT')
+    private readonly redisClient: Redis,
     private readonly eventPublisher: DocumentEventPublisher,
+    private readonly cache: CachingService, // Pour certaines méthodes Phase 6 si besoin
   ) {}
 
-  /**
-   * DOC-08 : Génère une URL MinIO présignée pour téléchargement direct.
-   * Implémente un cache Redis TTL pour éviter de régénérer une URL déjà valide.
-   */
-  async getPresignedUrl(
-    documentId: string,
-  ): Promise<{ presignedUrl: string; expiresAt: string }> {
-    const doc = await this.prisma.document.findUnique({
-      where: { id: documentId },
+  // ─────────────────────────────────────────────────────────────
+  // [DOC-01] Upload document sécurisé
+  // ─────────────────────────────────────────────────────────────
+  async uploadDocument(
+    file: Express.Multer.File,
+    uploadDto: UploadDocumentDto,
+  ): Promise<UploadResponseDto> {
+    const hashSha256 = this.computeSha256(file.buffer);
+    this.logger.debug(`Hash calculé: ${hashSha256} | "${file.originalname}"`);
+
+    const existingDoc = await this.prisma.document.findUnique({
+      where: { hashSha256 },
+      select: { id: true, nom: true },
     });
-    if (!doc) {
-      throw new NotFoundException(`Document ${documentId} introuvable.`);
+
+    if (existingDoc) {
+      this.logger.warn(`Doublon: "${file.originalname}" = document "${existingDoc.nom}" (${existingDoc.id})`);
+      throw new ConflictException(`Ce fichier existe déjà dans le système (id: ${existingDoc.id}).`);
     }
 
-    const cacheKey = `presignedUrl:${documentId}`;
+    const fileUuid = uuidv4();
+    const safeFileName = this.sanitizeFileName(file.originalname);
+    const objectName = `${uploadDto.ownerType}/${uploadDto.ownerId}/${fileUuid}-${safeFileName}`;
 
-    // Cache HIT — retourner l'URL directement
-    const cached = await this.cache.get(cacheKey);
-    if (cached) {
-      this.logger.log(`Cache HIT pour presignedUrl:${documentId}`);
-      const expiresAt = new Date(Date.now() + TTL_DEFAULT * 1000).toISOString();
-      return { presignedUrl: cached, expiresAt };
+    let uploadedObjectName: string;
+    try {
+      uploadedObjectName = await this.storageService.uploadBuffer(
+        objectName,
+        file.buffer,
+        file.mimetype,
+        file.size,
+      );
+    } catch (error) {
+      this.logger.error(`Échec upload MinIO: ${(error as Error).message}`);
+      throw new InternalServerErrorException('Erreur lors du stockage du fichier. Veuillez réessayer.');
     }
 
-    // Cache MISS — générer l'URL et la mettre en cache
-    this.logger.log(`Cache MISS — génération URL présignée pour ${documentId}`);
-    const ttl = TTL_DEFAULT;
-    const presignedUrl = await this.storage.getPresignedUrl(
-      doc.fichierUrl,
-      ttl,
-    );
+    let document: any;
+    try {
+      document = await this.prisma.document.create({
+        data: {
+          ownerId: uploadDto.ownerId,
+          ownerType: uploadDto.ownerType,
+          nom: file.originalname,
+          typeMime: file.mimetype,
+          tailleOctets: BigInt(file.size),
+          fichierUrl: uploadedObjectName,
+          hashSha256,
+        },
+      });
 
-    await this.cache.set(cacheKey, presignedUrl, ttl);
+      this.logger.log(`✅ Document créé: id=${document.id} | "${file.originalname}"`);
+    } catch (error) {
+      this.logger.error(`Prisma échoué → rollback MinIO: suppression de "${uploadedObjectName}"`);
+      await this.storageService.deleteObject(uploadedObjectName);
+      throw new InternalServerErrorException("Erreur lors de l'enregistrement des métadonnées. Le fichier n'a pas été conservé.");
+    }
 
-    const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
-    return { presignedUrl, expiresAt };
+    return {
+      id: document.id,
+      nom: document.nom,
+      typeMime: document.typeMime,
+      tailleOctets: Number(document.tailleOctets),
+      hashSha256: document.hashSha256,
+      fichierUrl: document.fichierUrl,
+      createdAt: document.createdAt,
+    };
   }
 
-  /**
-   * DOC-09 : Vérifie l'intégrité d'un document en recalculant son hash SHA-256.
-   * Compare avec le hash stocké lors de l'upload — détecte toute altération post-upload.
-   */
+  // ─────────────────────────────────────────────────────────────
+  // [DOC-02 / DOC-08] URL présignée avec cache Redis
+  // ─────────────────────────────────────────────────────────────
+  async getPresignedUrl(documentId: string): Promise<PresignedUrlResponseDto> {
+    const document = await this.prisma.document.findUnique({
+      where: { id: documentId },
+      select: { id: true, fichierUrl: true, nom: true },
+    });
+
+    if (!document) {
+      throw new NotFoundException(`Document introuvable (id: ${documentId}).`);
+    }
+
+    const redisKey = `${REDIS_KEY_PREFIX}:${documentId}`;
+    let cachedUrl: string | null = null;
+
+    try {
+      cachedUrl = await this.redisClient.get(redisKey);
+    } catch (err) {
+      this.logger.warn(`Redis GET échoué (${redisKey}): ${(err as Error).message}`);
+    }
+
+    if (cachedUrl) {
+      this.logger.debug(`[HIT] Redis: URL présignée pour ${documentId}`);
+      let remainingTtl = PRESIGNED_URL_TTL;
+      try {
+        const ttl = await this.redisClient.ttl(redisKey);
+        if (ttl > 0) remainingTtl = ttl;
+      } catch { /* ignored */ }
+
+      return {
+        url: cachedUrl,
+        expiresAt: Math.floor(Date.now() / 1000) + remainingTtl,
+        ttlSeconds: remainingTtl,
+        fromCache: true,
+      };
+    }
+
+    this.logger.debug(`[MISS] Redis: génération URL présignée pour ${documentId}`);
+    const presignedUrl = await this.storageService.generatePresignedUrl(
+      document.fichierUrl,
+      PRESIGNED_URL_TTL,
+    );
+
+    try {
+      await this.redisClient.setex(redisKey, PRESIGNED_URL_TTL, presignedUrl);
+    } catch (err) {
+      this.logger.warn(`Redis SET échoué (${redisKey})`);
+    }
+
+    return {
+      url: presignedUrl,
+      expiresAt: Math.floor(Date.now() / 1000) + PRESIGNED_URL_TTL,
+      ttlSeconds: PRESIGNED_URL_TTL,
+      fromCache: false,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // [DOC-02] Métadonnées d'un document
+  // ─────────────────────────────────────────────────────────────
+  async getDocumentById(documentId: string): Promise<DocumentMetaResponseDto> {
+    const document = await this.prisma.document.findUnique({
+      where: { id: documentId },
+    });
+
+    if (!document) {
+      throw new NotFoundException(`Document introuvable (id: ${documentId})`);
+    }
+
+    return {
+      id: document.id,
+      ownerId: document.ownerId,
+      ownerType: document.ownerType,
+      nom: document.nom,
+      typeMime: document.typeMime,
+      tailleOctets: document.tailleOctets ? Number(document.tailleOctets) : null,
+      hashSha256: document.hashSha256,
+      createdAt: document.createdAt,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // [DOC-09] Vérifier intégrité SHA-256
+  // ─────────────────────────────────────────────────────────────
   async checkIntegrity(
     documentId: string,
   ): Promise<{ documentId: string; integrityOk: boolean; checkedAt: string }> {
@@ -71,16 +204,14 @@ export class DocumentsService {
       throw new NotFoundException(`Document ${documentId} introuvable.`);
     }
 
-    const stream = await this.storage.getObjectStream(doc.fichierUrl);
+    const stream = await this.storageService.getObjectStream(doc.fichierUrl);
     const actualHash = await this.computeSha256FromStream(stream);
 
     const integrityOk = actualHash === doc.hashSha256;
     const checkedAt = new Date().toISOString();
 
     if (!integrityOk) {
-      this.logger.warn(
-        `⚠️  Altération détectée sur le document ${documentId} !`,
-      );
+      this.logger.warn(`⚠️  Altération détectée sur le document ${documentId} !`);
       await this.eventPublisher.publishDocumentValidated({
         documentId: doc.id,
         submissionId: doc.ownerId,
@@ -93,17 +224,29 @@ export class DocumentsService {
     return { documentId, integrityOk, checkedAt };
   }
 
-  /**
-   * Calcule le SHA-256 d'un flux Node.js Readable en mode streaming.
-   */
-  private computeSha256FromStream(
-    stream: NodeJS.ReadableStream,
-  ): Promise<string> {
+  // ─────────────────────────────────────────────────────────────
+  // Méthodes privées
+  // ─────────────────────────────────────────────────────────────
+  private computeSha256(buffer: Buffer): string {
+    return crypto.createHash('sha256').update(buffer).digest('hex');
+  }
+
+  private computeSha256FromStream(stream: NodeJS.ReadableStream): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       const hash = crypto.createHash('sha256');
       stream.on('data', (chunk: Buffer) => hash.update(chunk));
       stream.on('end', () => resolve(hash.digest('hex')));
       stream.on('error', (err: Error) => reject(err));
     });
+  }
+
+  private sanitizeFileName(originalName: string): string {
+    return originalName
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9.\-_]/g, '')
+      .replace(/\.{2,}/g, '.')
+      .replace(/^\.+/, '')
+      .substring(0, 150);
   }
 }
