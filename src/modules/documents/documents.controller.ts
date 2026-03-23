@@ -32,7 +32,7 @@ import { FileValidationPipe } from '../../common/pipes/file-validation.pipe';
 import { MAX_FILE_SIZE } from '../../common/config/minio.config';
 
 @ApiTags('Documents')
-@Controller('api/v1/documents')
+@Controller('documents')
 export class DocumentsController {
   private readonly logger = new Logger(DocumentsController.name);
 
