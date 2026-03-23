@@ -22,6 +22,7 @@ Le dossier source (`src/`) est organisé comme suit :
 ### ✅ [DOC-01] Upload sécurisé de document
 **Objectif** : Gérer la réception d'un fichier avec validations de surface (taille, extension, type MIME), le stocker dans MinIO et sauvegarder ses métadonnées dans PostgreSQL (Prisma).
 
+
 **Implémentation :**
 1. **Contrôleur (`DocumentsController.uploadDocument`)** *(src/modules/documents/documents.controller.ts)* :
    - Écoute sur `POST /api/documents/upload`.

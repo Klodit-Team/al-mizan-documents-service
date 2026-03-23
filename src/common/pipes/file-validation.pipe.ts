@@ -23,7 +23,7 @@ import {
   UnprocessableEntityException,
   Logger,
 } from '@nestjs/common';
-import { fileTypeFromBuffer } from 'file-type';
+import { fromBuffer } from 'file-type';
 import {
   ALLOWED_EXTENSIONS,
   ALLOWED_MIME_TYPES,
@@ -62,7 +62,7 @@ export class FileValidationPipe implements PipeTransform {
     // ── COUCHE 2 : Magic Bytes (protection anti-spoofing) ────
     // file-type lit les premiers octets du buffer pour détecter
     // le VRAI format du fichier, indépendamment de son extension.
-    const detectedType = await fileTypeFromBuffer(file.buffer);
+    const detectedType = await fromBuffer(file.buffer);
 
     if (!detectedType) {
       this.logger.warn(
