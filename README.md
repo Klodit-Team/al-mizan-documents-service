@@ -707,29 +707,45 @@ push feature/* → Lint (ESLint) → Tests unitaires (Jest, ≥80% cov)
 
 ---
 
-## 14. Estimation de Charge (CAPEX M6)
+## 14. État d'Avancement
 
-> Phase M6 : Sprints S6–S11 (6 semaines)
+### Backlog Réalisé (Suivi DEV)
 
-| Profil | TJM (DZD/jour) | Charge (J/H) | Coût (DZD) |
-|--------|:--------------:|:------------:|:----------:|
-| Dev Backend Senior | 5 000 | 12 | 60 000 |
-| Dev Frontend (Next.js) | 4 000 | 8 | 32 000 |
-| Ingénieur Sécurité & DevSecOps | 6 000 | 6 | 36 000 |
-| Admin Système / DBA | 4 500 | 4 | 18 000 |
-| Ingénieur QA & Tests | 3 500 | 6 | 21 000 |
-| **TOTAL M6** | — | **36** | **167 000** |
+| Statut | ID | Fonctionnalité | Acteur(s) | User Story | Priorité |
+|:---:|-----|----------------|-----------|-----------|---------|
+| [ ] | `DOC-01` | **Upload document sécurisé** | Tous | En tant qu'utilisateur, je veux uploader un document avec calcul automatique du hash SHA-256 afin de le stocker de manière sécurisée sur MinIO. | 🔴 **Haute** |
+| [ ] | `DOC-02` | **Consulter / Télécharger un document** | Tous | En tant qu'utilisateur, je veux consulter ou télécharger un document via URL présignée MinIO afin d'accéder à son contenu sans exposer le stockage direct. | 🔴 **Haute** |
+| [x] | `DOC-03` | **Joindre les pièces administratives** | Opérateur Économique | En tant qu'OE, je veux joindre mes pièces (NIF, NIS, RC, Casier...) à ma soumission afin de justifier mon éligibilité. | 🔴 **Haute** |
+| [x] | `DOC-04` | **Valider / Invalider une pièce** | SC / Commission | En tant que membre de commission, je veux valider ou invalider une pièce (conformité, date d'expiration) afin de statuer sur l'éligibilité. | 🔴 **Haute** |
+| [x] | `DOC-05` | **Déclencher pipeline OCR/NLP** | Système | En tant que système, je veux publier un événement après upload afin que l'IA Service (8011) analyse la conformité de la pièce. | 🟡 **Moyenne** |
+| [x] | `DOC-06` | **Consulter résultats OCR** | SC / Commission | En tant que membre de commission, je veux consulter le score de confiance, la conformité et les anomalies OCR afin de prendre une décision éclairée. | 🟡 **Moyenne** |
+| [x] | `DOC-07` | **Vérifier certificats PKI** | Système | En tant que système, je veux vérifier automatiquement la validité des certificats de signature (OCSP) sur les documents critiques. | 🔴 **Haute** |
+| [x] | `DOC-08` | **Générer URL présignée temporaire** | Système | En tant que système, je veux générer une URL présignée MinIO (TTL configurable) afin de permettre le téléchargement direct. | 🔴 **Haute** |
+| [x] | `DOC-09` | **Vérifier intégrité d'un document** | Système / Admin | En tant que système, je veux recalculer et comparer le hash SHA-256 d'un document stocké afin de détecter toute altération. | 🔴 **Haute** |
+| [x] | `DOC-10` | **Lister les pièces d'une soumission** | SC / Commission | En tant que membre de commission, je veux consulter la liste complète des pièces d'une soumission afin de préparer l'évaluation. | 🔴 **Haute** |
 
-### Planning Sprints
+### Détails des Tests Unitaires (DOC-03, DOC-04, DOC-05, DOC-06, DOC-07, DOC-08, DOC-09, DOC-10)
 
-| Sprint | Durée | Livrables (IDs Backlog) |
-|--------|-------|------------------------|
-| **S6** | 1 sem | Setup NestJS, module Upload, hash SHA-256, MinIO (DOC-01) |
-| **S7** | 1 sem | Module Pièces Administratives, enum types, association soumission (DOC-03) |
-| **S8** | 1 sem | Module Download, URL présignées Redis, vérification intégrité (DOC-02, DOC-08, DOC-09) |
-| **S9** | 1 sem | Module Validation commission, workflow PENDING→VALID/INVALID (DOC-04, DOC-10) |
-| **S10** | 1 sem | Événements RabbitMQ (producer + consumer), stockage résultats OCR (DOC-05, DOC-06) |
-| **S11** | 1 sem | PKI/OCSP, tests intégration ≥80%, Swagger complet, audit OWASP (DOC-07) |
+La stratégie de test mise en place couvre **46 tests unitaires** répartis sur **14 suites**, toutes passant à 100% au green avec `npm run test`. L'approche isole chaque couche via un double mocking complet (NestJS `TestingModule` + `jest.fn()`).
+
+*   **Tests de conformité de l'API (Contrôleurs) :**
+    *   Toutes les routes (`attachPiece`, `getPiecesBySubmission`, `validatePiece`, `verifyCertificate`, `download`, `integrity`) délèguent vers le service mock et transmettent les DTOs et Params intacts.
+
+*   **Tests Métier et Juridiques (Services) :**
+    *   **Anti-Fraude et Doublon (DOC-03)** : `NotFoundException` si le document physique `documentId` est absent ; `ConflictException` si le même type de pièce a déjà été déposé.
+    *   **Contrôle Automatique Art. 73 (DOC-04)** : Les timestamps sont construits dynamiquement (**zéro hardcoding**). Le système force `isValide: false` si la pièce est expirée, même si la commission a demandé `true`.
+    *   **Souveraineté des Données (DOC-10)** : Certifie que Prisma exécute `include: { document: true }` pour récupérer les URL MinIO.
+    *   **PKI & Cryptographie (DOC-07)** : Valide les 3 chemins métier : `NotFoundException`, `BadRequestException` (non-PDF / pas de PAdES), et succès avec structure `{ isValid, issuer, subject, notBefore, notAfter, isRevoked }`.
+    *   **URL Présignée (DOC-08)** : Test du cache Redis HIT (retour direct sans appel MinIO) et MISS (génération + mise en cache avec bon TTL). Vérifie également `NotFoundException` si document absent.
+    *   **Intégrité SHA-256 (DOC-09)** : Test du recalcul en streaming via un `Readable` factice. Certifie que `integrityOk: true` si les hashs correspondent, `integrityOk: false` + publication d'événement d'alerte `SYSTEM` si altération détectée.
+
+*   **Tests de la couche Messaging RabbitMQ (DOC-05, DOC-06) :**
+    *   **`DocumentEventPublisher`** : Vérifie l'émission correcte des 4 événements métier. Atteste la conversion sécurisée `BigInt → String` pour la taille des fichiers.
+    *   **`OcrResultConsumer`** : La persistance des résultats OCR et la résilience en cas de panne BDD sont validées.
+
+*   **Tests d'Infrastructure (Storage & Cache) :**
+    *   **`StorageService`** : Mock MinIO SDK complet — vérifie `presignedGetObject()` et `getObject()` avec le bon bucket et les bons paramètres.
+    *   **`CachingService`** : Mock `ioredis` via `jest.mock()` — vérifie `get()`, `set()` avec `EX TTL`, et `del()`.
 
 ---
 
