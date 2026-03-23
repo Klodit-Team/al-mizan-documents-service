@@ -1,0 +1,93 @@
+﻿[
+    {
+        "Name": "al-mizan-appel-offres-service_default",
+        "Id": "e427ed0cbc894223a5fc24f198216307cc5d293f073525a024c9acbeb2f70ef1",
+        "Created": "2026-02-25T23:06:54.350361931Z",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv4": true,
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+                {
+                    "Subnet": "172.18.0.0/16",
+                    "IPRange": "",
+                    "Gateway": "172.18.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Options": {
+            "com.docker.network.enable_ipv4": "true",
+            "com.docker.network.enable_ipv6": "false"
+        },
+        "Labels": {
+            "com.docker.compose.config-hash": "c042243060faaf77142f0cdb6ca36e0df49c1f3e5a2950e970da214f7bc28ffe",
+            "com.docker.compose.network": "default",
+            "com.docker.compose.project": "al-mizan-appel-offres-service",
+            "com.docker.compose.version": "2.40.3"
+        },
+        "Containers": {
+            "07222dbe95560d87832b157889d2535cacf56c3550c95d7c776fba874dbd99a0": {
+                "Name": "al-mizan-ao-rabbitmq",
+                "EndpointID": "04276eb01e8e54ff9b9ad6076ccd97b2fdf62a5c6957514231cd2b84e5a924c5",
+                "MacAddress": "0a:18:5f:72:8b:79",
+                "IPv4Address": "172.18.0.7/16",
+                "IPv6Address": ""
+            },
+            "29be681b0eeb8c95b084d8134de18e5010d6c9ea9e44565f5ad17fd8af664222": {
+                "Name": "al-mizan-ao-redis",
+                "EndpointID": "d08bab4072efad37cfafbddb067bed89b6d7f757d1482aafd912a735f82b1583",
+                "MacAddress": "ba:00:60:61:d2:fb",
+                "IPv4Address": "172.18.0.5/16",
+                "IPv6Address": ""
+            },
+            "455e9c0326ad8f359e7bf95cd3cb6b4245e4a4d4f81bd0d678935f03c30058b5": {
+                "Name": "al-mizan-documents-service-document-service-1",
+                "EndpointID": "78eaa44c1cd78dbe5337a8e5a4b6603a7d6db1dea633d5b05f9784076ee00710",
+                "MacAddress": "82:ba:7e:a0:05:ef",
+                "IPv4Address": "172.18.0.3/16",
+                "IPv6Address": ""
+            },
+            "8f0b7422479f921218735d25bfa3f13605a4c3ce7952e58df74b3a8370b56b82": {
+                "Name": "al-mizan-documents-service-document-postgres-1",
+                "EndpointID": "556c79e85efadc8f7fb48c3a5458111e9856bbd6ecbf1d9e57467f83ac9c6540",
+                "MacAddress": "86:a4:db:fa:de:fb",
+                "IPv4Address": "172.18.0.2/16",
+                "IPv6Address": ""
+            },
+            "dba4cd328d7d457467bd7dfb9c8a01f3d66bec4dacda64d50cd9e1c32409f88f": {
+                "Name": "al-mizan-ao-postgres",
+                "EndpointID": "b512ce306d486af58abd54389a137b53770939a43537fc208246270d6c3fa0ca",
+                "MacAddress": "f2:67:b9:85:73:03",
+                "IPv4Address": "172.18.0.4/16",
+                "IPv6Address": ""
+            },
+            "f812bcd598406c55ca0245ad9b9fef8b2634ed697b94fa211e2f4c75d74fa409": {
+                "Name": "al-mizan-ao-minio",
+                "EndpointID": "5aa06ba36501a24ec9f7fbeba5885bf98bd390fbdf885eb756caf234766269f9",
+                "MacAddress": "0a:83:ff:1b:95:0a",
+                "IPv4Address": "172.18.0.6/16",
+                "IPv6Address": ""
+            }
+        },
+        "Status": {
+            "IPAM": {
+                "Subnets": {
+                    "172.18.0.0/16": {
+                        "IPsInUse": 9,
+                        "DynamicIPsAvailable": 65527
+                    }
+                }
+            }
+        }
+    }
+]

@@ -1,21 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CachingService } from './caching.service';
-import { ConfigService } from '@nestjs/config';
 
-// On mock ioredis globalement pour éviter toute connexion réelle
 const mockRedisGet = jest.fn();
 const mockRedisSet = jest.fn();
 const mockRedisDel = jest.fn();
-const mockRedisQuit = jest.fn();
 
-jest.mock('ioredis', () => {
-  return jest.fn().mockImplementation(() => ({
-    get: mockRedisGet,
-    set: mockRedisSet,
-    del: mockRedisDel,
-    quit: mockRedisQuit,
-  }));
-});
+const mockRedisClient = {
+  get: mockRedisGet,
+  set: mockRedisSet,
+  del: mockRedisDel,
+};
 
 describe('CachingService', () => {
   let service: CachingService;
@@ -27,10 +21,8 @@ describe('CachingService', () => {
       providers: [
         CachingService,
         {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn().mockReturnValue('redis://localhost:6379'),
-          },
+          provide: 'REDIS_CLIENT',
+          useValue: mockRedisClient,
         },
       ],
     }).compile();

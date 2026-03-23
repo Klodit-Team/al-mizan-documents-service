@@ -1,16 +1,20 @@
-import { Injectable } from '@nestjs/common';
-import Redis from 'ioredis';
-import { ConfigService } from '@nestjs/config';
+// =========================================================
+// src/caching/caching.service.ts
+//
+// Wrapper léger autour du client Redis partagé ('REDIS_CLIENT').
+// Réutilise le client ioredis injecté par RedisModule (@Global)
+// au lieu de créer une 2ème connexion redondante.
+// =========================================================
+
+import { Injectable, Inject } from '@nestjs/common';
+import type { Redis } from 'ioredis';
 
 @Injectable()
 export class CachingService {
-  private readonly client: Redis;
-
-  constructor(private readonly configService: ConfigService) {
-    this.client = new Redis(
-      this.configService.get<string>('REDIS_URL', 'redis://localhost:6379'),
-    );
-  }
+  constructor(
+    @Inject('REDIS_CLIENT')
+    private readonly client: Redis,
+  ) {}
 
   async get(key: string): Promise<string | null> {
     return this.client.get(key);
@@ -22,9 +26,5 @@ export class CachingService {
 
   async del(key: string): Promise<void> {
     await this.client.del(key);
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    await this.client.quit();
   }
 }

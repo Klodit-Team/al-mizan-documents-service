@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   document-service:
     build: .
@@ -21,6 +19,7 @@ services:
       
       REDIS_HOST: al-mizan-ao-redis
       REDIS_PORT: 6379
+      REDIS_URL: "redis://al-mizan-ao-redis:6379"
       
       RABBITMQ_URL: "amqp://guest:guest@al-mizan-ao-rabbitmq:5672"
       

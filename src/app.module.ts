@@ -48,6 +48,7 @@ import { HealthModule } from './health/health.module';
     // Infrastructure
     PrismaModule,
     StorageModule,
+    RedisModule,
     CachingModule,
     MessagingModule,
     // Modules métier
