@@ -34,7 +34,11 @@ describe('DocumentsController', () => {
   describe('GET :id — getDocumentById (DOC-02)', () => {
     it('devrait déléguer au service et retourner les métadonnées', async () => {
       const docId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-      const expected = { id: docId, nom: 'test.pdf', typeMime: 'application/pdf' };
+      const expected = {
+        id: docId,
+        nom: 'test.pdf',
+        typeMime: 'application/pdf',
+      };
       mockDocumentsService.getDocumentById.mockResolvedValue(expected);
 
       const result = await controller.getDocumentById(docId);

@@ -19,7 +19,6 @@
 import {
   PipeTransform,
   Injectable,
-  ArgumentMetadata,
   UnprocessableEntityException,
   Logger,
 } from '@nestjs/common';
@@ -35,11 +34,8 @@ export class FileValidationPipe implements PipeTransform {
   private readonly logger = new Logger(FileValidationPipe.name);
 
   // ArgumentMetadata est requis par l'interface PipeTransform
-  // mais on ne l'utilise pas ici (la logique est générique)
-  async transform(
-    file: Express.Multer.File,
-    _metadata: ArgumentMetadata,
-  ): Promise<Express.Multer.File> {
+  // mais on  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async transform(file: Express.Multer.File): Promise<Express.Multer.File> {
     // ── Vérifier que Multer a bien transmis un fichier ──────
     if (!file) {
       throw new UnprocessableEntityException('Aucun fichier reçu.');
@@ -49,7 +45,11 @@ export class FileValidationPipe implements PipeTransform {
     const originalName = file.originalname.toLowerCase();
     const extension = originalName.split('.').pop() ?? '';
 
-    if (!ALLOWED_EXTENSIONS.includes(extension as any)) {
+    if (
+      !ALLOWED_EXTENSIONS.includes(
+        extension as (typeof ALLOWED_EXTENSIONS)[number],
+      )
+    ) {
       this.logger.warn(
         `Fichier rejeté — Extension non autorisée: .${extension} (fichier: ${file.originalname})`,
       );
@@ -74,7 +74,11 @@ export class FileValidationPipe implements PipeTransform {
       );
     }
 
-    if (!ALLOWED_MIME_TYPES.includes(detectedType.mime as any)) {
+    if (
+      !ALLOWED_MIME_TYPES.includes(
+        detectedType.mime as (typeof ALLOWED_MIME_TYPES)[number],
+      )
+    ) {
       this.logger.warn(
         `ALERTE SÉCURITÉ — Possible spoofing d'extension détecté! ` +
           `Fichier: ${file.originalname}, ` +

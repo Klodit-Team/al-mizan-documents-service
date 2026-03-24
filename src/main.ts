@@ -15,8 +15,6 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import { MinioExceptionFilter } from './common/filters/minio-exception.filter';
 
 async function bootstrap() {
@@ -56,9 +54,10 @@ async function bootstrap() {
   // En développement, autoriser toutes les origines.
   // En production, restreindre à l'API Gateway uniquement.
   app.enableCors({
-    origin: process.env.NODE_ENV === 'production'
-      ? process.env.ALLOWED_ORIGINS?.split(',') ?? []
-      : '*',
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? (process.env.ALLOWED_ORIGINS?.split(',') ?? [])
+        : '*',
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
@@ -70,7 +69,7 @@ async function bootstrap() {
     .setTitle('Al-Mizan — Document Service')
     .setDescription(
       'API de gestion des documents pour la plateforme Al-Mizan. ' +
-        'Gère l\'upload sécurisé, le stockage MinIO, la génération d\'URL présignées ' +
+        "Gère l'upload sécurisé, le stockage MinIO, la génération d'URL présignées " +
         'et les pièces administratives des soumissions.',
     )
     .setVersion('1.0')
@@ -119,4 +118,6 @@ process.on('unhandledRejection', (reason: Error) => {
   );
 });
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Erreur au démarrage:', err);
+});

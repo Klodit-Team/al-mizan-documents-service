@@ -43,7 +43,9 @@ const redisLogger = new Logger('RedisModule');
               return null; // Arrêter de réessayer
             }
             const delay = Math.min(times * 200, 3000); // Backoff: 200ms, 400ms... max 3s
-            redisLogger.warn(`Redis: reconnexion dans ${delay}ms (tentative ${times})`);
+            redisLogger.warn(
+              `Redis: reconnexion dans ${delay}ms (tentative ${times})`,
+            );
             return delay;
           },
 

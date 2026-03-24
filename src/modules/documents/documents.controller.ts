@@ -70,7 +70,7 @@ export class DocumentsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: '[DOC-02] Récupérer les métadonnées d\'un document' })
+  @ApiOperation({ summary: "[DOC-02] Récupérer les métadonnées d'un document" })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, type: DocumentMetaResponseDto })
   async getDocumentById(@Param('id', ParseUUIDPipe) id: string) {
@@ -78,7 +78,9 @@ export class DocumentsController {
   }
 
   @Get(':id/download')
-  @ApiOperation({ summary: '[DOC-08] Générer une URL présignée pour téléchargement direct' })
+  @ApiOperation({
+    summary: '[DOC-08] Générer une URL présignée pour téléchargement direct',
+  })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, type: PresignedUrlResponseDto })
   async getPresignedDownloadUrl(@Param('id', ParseUUIDPipe) id: string) {
@@ -86,9 +88,18 @@ export class DocumentsController {
   }
 
   @Get(':id/integrity')
-  @ApiOperation({ summary: "[DOC-09] Vérifier l'intégrité SHA-256 d'un document" })
-  @ApiParam({ name: 'id', description: 'ID du document (UUID)', type: 'string' })
-  @ApiResponse({ status: 200, description: "Résultat de la vérification d'intégrité." })
+  @ApiOperation({
+    summary: "[DOC-09] Vérifier l'intégrité SHA-256 d'un document",
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID du document (UUID)',
+    type: 'string',
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Résultat de la vérification d'intégrité.",
+  })
   @ApiResponse({ status: 404, description: 'Document introuvable.' })
   async integrity(@Param('id', ParseUUIDPipe) id: string) {
     return this.documentsService.checkIntegrity(id);

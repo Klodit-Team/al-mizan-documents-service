@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Redis } from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import { Document } from '@prisma/client';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import {
   UploadResponseDto,
@@ -56,8 +57,12 @@ export class DocumentsService {
     });
 
     if (existingDoc) {
-      this.logger.warn(`Doublon: "${file.originalname}" = document "${existingDoc.nom}" (${existingDoc.id})`);
-      throw new ConflictException(`Ce fichier existe déjà dans le système (id: ${existingDoc.id}).`);
+      this.logger.warn(
+        `Doublon: "${file.originalname}" = document "${existingDoc.nom}" (${existingDoc.id})`,
+      );
+      throw new ConflictException(
+        `Ce fichier existe déjà dans le système (id: ${existingDoc.id}).`,
+      );
     }
 
     const fileUuid = uuidv4();
@@ -74,10 +79,12 @@ export class DocumentsService {
       );
     } catch (error) {
       this.logger.error(`Échec upload MinIO: ${(error as Error).message}`);
-      throw new InternalServerErrorException('Erreur lors du stockage du fichier. Veuillez réessayer.');
+      throw new InternalServerErrorException(
+        'Erreur lors du stockage du fichier. Veuillez réessayer.',
+      );
     }
 
-    let document: any;
+    let document: Document;
     try {
       document = await this.prisma.document.create({
         data: {
@@ -91,11 +98,17 @@ export class DocumentsService {
         },
       });
 
-      this.logger.log(`✅ Document créé: id=${document.id} | "${file.originalname}"`);
-    } catch (error) {
-      this.logger.error(`Prisma échoué → rollback MinIO: suppression de "${uploadedObjectName}"`);
+      this.logger.log(
+        `✅ Document créé: id=${document.id} | "${file.originalname}"`,
+      );
+    } catch {
+      this.logger.error(
+        `Prisma échoué → rollback MinIO: suppression de "${uploadedObjectName}"`,
+      );
       await this.storageService.deleteObject(uploadedObjectName);
-      throw new InternalServerErrorException("Erreur lors de l'enregistrement des métadonnées. Le fichier n'a pas été conservé.");
+      throw new InternalServerErrorException(
+        "Erreur lors de l'enregistrement des métadonnées. Le fichier n'a pas été conservé.",
+      );
     }
 
     return {
@@ -127,8 +140,10 @@ export class DocumentsService {
 
     try {
       cachedUrl = await this.redisClient.get(redisKey);
-    } catch (err) {
-      this.logger.warn(`Redis GET échoué (${redisKey}): ${(err as Error).message}`);
+    } catch (_err) {
+      this.logger.warn(
+        `Redis GET échoué (${redisKey}): ${(_err as Error).message}`,
+      );
     }
 
     if (cachedUrl) {
@@ -137,7 +152,9 @@ export class DocumentsService {
       try {
         const ttl = await this.redisClient.ttl(redisKey);
         if (ttl > 0) remainingTtl = ttl;
-      } catch { /* ignored */ }
+      } catch {
+        /* ignored */
+      }
 
       return {
         url: cachedUrl,
@@ -147,7 +164,9 @@ export class DocumentsService {
       };
     }
 
-    this.logger.debug(`[MISS] Redis: génération URL présignée pour ${documentId}`);
+    this.logger.debug(
+      `[MISS] Redis: génération URL présignée pour ${documentId}`,
+    );
     const presignedUrl = await this.storageService.generatePresignedUrl(
       document.fichierUrl,
       PRESIGNED_URL_TTL,
@@ -155,7 +174,7 @@ export class DocumentsService {
 
     try {
       await this.redisClient.setex(redisKey, PRESIGNED_URL_TTL, presignedUrl);
-    } catch (err) {
+    } catch {
       this.logger.warn(`Redis SET échoué (${redisKey})`);
     }
 
@@ -185,7 +204,9 @@ export class DocumentsService {
       ownerType: document.ownerType,
       nom: document.nom,
       typeMime: document.typeMime,
-      tailleOctets: document.tailleOctets ? Number(document.tailleOctets) : null,
+      tailleOctets: document.tailleOctets
+        ? Number(document.tailleOctets)
+        : null,
       hashSha256: document.hashSha256,
       createdAt: document.createdAt,
     };
@@ -211,7 +232,9 @@ export class DocumentsService {
     const checkedAt = new Date().toISOString();
 
     if (!integrityOk) {
-      this.logger.warn(`⚠️  Altération détectée sur le document ${documentId} !`);
+      this.logger.warn(
+        `⚠️  Altération détectée sur le document ${documentId} !`,
+      );
       await this.eventPublisher.publishDocumentValidated({
         documentId: doc.id,
         submissionId: doc.ownerId,
@@ -231,7 +254,9 @@ export class DocumentsService {
     return crypto.createHash('sha256').update(buffer).digest('hex');
   }
 
-  private computeSha256FromStream(stream: NodeJS.ReadableStream): Promise<string> {
+  private computeSha256FromStream(
+    stream: NodeJS.ReadableStream,
+  ): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       const hash = crypto.createHash('sha256');
       stream.on('data', (chunk: Buffer) => hash.update(chunk));

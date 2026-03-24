@@ -1,5 +1,3 @@
-
-
 import {
   ExceptionFilter,
   Catch,
@@ -9,12 +7,17 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 
-
 @Catch()
 export class MinioExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(MinioExceptionFilter.name);
 
   catch(exception: any, host: ArgumentsHost) {
+    const err = exception as {
+      code?: string;
+      message?: string;
+      name?: string;
+      stack?: string;
+    };
     const response = host.switchToHttp().getResponse<Response>();
 
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -24,37 +27,37 @@ export class MinioExceptionFilter implements ExceptionFilter {
     // exception.code contient le code d'erreur MinIO
     // exception.message contient le message descriptif
 
-    if (exception.code === 'NoSuchKey') {
+    if (err.code === 'NoSuchKey') {
       statusCode = HttpStatus.NOT_FOUND;
       message = 'Fichier introuvable dans le stockage (MinIO)';
-    } else if (exception.code === 'NoSuchBucket') {
+    } else if (err.code === 'NoSuchBucket') {
       statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
       message = 'Bucket MinIO non configuré ou inaccessible';
       this.logger.error(
         `Erreur de configuration MinIO: bucket inexistant — vérifiez MINIO_BUCKET_NAME`,
       );
     } else if (
-      exception.code === 'AccessDenied' ||
-      exception.code === 'SignatureDoesNotMatch' ||
-      exception.code === 'InvalidAccessKeyId'
+      err.code === 'AccessDenied' ||
+      err.code === 'SignatureDoesNotMatch' ||
+      err.code === 'InvalidAccessKeyId'
     ) {
       statusCode = HttpStatus.FORBIDDEN;
       message =
         'Accès MinIO refusé — identifiants invalides ou permissions insuffisantes';
       this.logger.error(
-        `Erreur d'authentification MinIO: ${exception.code} — vérifiez les credentials`,
+        `Erreur d'authentification MinIO: ${err.code} — vérifiez les credentials`,
       );
     } else if (
-      exception.code === 'EntityTooLarge' ||
-      exception.code === 'RequestEntityTooLarge'
+      err.code === 'EntityTooLarge' ||
+      err.code === 'RequestEntityTooLarge'
     ) {
       statusCode = HttpStatus.PAYLOAD_TOO_LARGE;
       message = 'Fichier trop volumineux pour le stockage';
     } else {
       // Erreur MinIO non mappée mais identificable
       this.logger.error(
-        `Erreur MinIO unmapped: ${exception.code || exception.name} — ${exception.message}`,
-        exception.stack,
+        `Erreur MinIO unmapped: ${err.code || err.name} — ${err.message}`,
+        err.stack,
       );
     }
 
@@ -65,8 +68,8 @@ export class MinioExceptionFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
       // En production, ne pas exposer les détails techniques
       ...(process.env.NODE_ENV !== 'production' && {
-        errorCode: exception.code || exception.name,
-        details: exception.message,
+        errorCode: err.code || err.name,
+        details: err.message,
       }),
     });
   }

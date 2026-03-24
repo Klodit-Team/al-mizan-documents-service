@@ -78,30 +78,42 @@ describe('DocumentsService', () => {
       buffer: Buffer.from('test content'),
     } as Express.Multer.File;
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const dto = { ownerId: 'owner-uuid', ownerType: 'USER' as any };
 
     it('devrait lever ConflictException si le fichier est un doublon (hash identique)', async () => {
-      mockPrisma.document.findUnique.mockResolvedValueOnce({ id: 'existing', nom: 'test.pdf' });
-      await expect(service.uploadDocument(file, dto)).rejects.toThrow(ConflictException);
+      mockPrisma.document.findUnique.mockResolvedValueOnce({
+        id: 'existing',
+        nom: 'test.pdf',
+      });
+      await expect(service.uploadDocument(file, dto)).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('devrait lever InternalServerErrorException si MinIO échoue', async () => {
       mockPrisma.document.findUnique.mockResolvedValueOnce(null);
       mockStorage.uploadBuffer.mockRejectedValueOnce(new Error('MinIO down'));
-      await expect(service.uploadDocument(file, dto)).rejects.toThrow(InternalServerErrorException);
+      await expect(service.uploadDocument(file, dto)).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
 
     it('devrait rollback MinIO si Prisma échoue', async () => {
       mockPrisma.document.findUnique.mockResolvedValueOnce(null);
       mockStorage.uploadBuffer.mockResolvedValueOnce('path/test.pdf');
       mockPrisma.document.create.mockRejectedValueOnce(new Error('DB error'));
-      await expect(service.uploadDocument(file, dto)).rejects.toThrow(InternalServerErrorException);
+      await expect(service.uploadDocument(file, dto)).rejects.toThrow(
+        InternalServerErrorException,
+      );
       expect(mockStorage.deleteObject).toHaveBeenCalledWith('path/test.pdf');
     });
 
     it('devrait retourner un UploadResponseDto en cas de succès', async () => {
       mockPrisma.document.findUnique.mockResolvedValueOnce(null);
-      mockStorage.uploadBuffer.mockResolvedValueOnce('USER/owner-uuid/uuid-test.pdf');
+      mockStorage.uploadBuffer.mockResolvedValueOnce(
+        'USER/owner-uuid/uuid-test.pdf',
+      );
       mockPrisma.document.create.mockResolvedValueOnce({
         id: 'new-uuid',
         nom: 'test.pdf',
@@ -124,7 +136,9 @@ describe('DocumentsService', () => {
   describe('DOC-02 : getDocumentById', () => {
     it('devrait lever NotFoundException si le document est introuvable', async () => {
       mockPrisma.document.findUnique.mockResolvedValueOnce(null);
-      await expect(service.getDocumentById('bad-id')).rejects.toThrow(NotFoundException);
+      await expect(service.getDocumentById('bad-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('devrait retourner les métadonnées du document', async () => {
@@ -151,12 +165,20 @@ describe('DocumentsService', () => {
   describe('DOC-08 : getPresignedUrl', () => {
     it('devrait lever NotFoundException si le document est introuvable', async () => {
       mockPrisma.document.findUnique.mockResolvedValueOnce(null);
-      await expect(service.getPresignedUrl('bad-id')).rejects.toThrow(NotFoundException);
+      await expect(service.getPresignedUrl('bad-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('devrait retourner URL depuis Redis si cache HIT', async () => {
-      mockPrisma.document.findUnique.mockResolvedValueOnce({ id: 'd1', fichierUrl: 'path/file.pdf', nom: 'f.pdf' });
-      mockRedisClient.get.mockResolvedValueOnce('https://minio/presigned-cached');
+      mockPrisma.document.findUnique.mockResolvedValueOnce({
+        id: 'd1',
+        fichierUrl: 'path/file.pdf',
+        nom: 'f.pdf',
+      });
+      mockRedisClient.get.mockResolvedValueOnce(
+        'https://minio/presigned-cached',
+      );
       mockRedisClient.ttl.mockResolvedValueOnce(300);
 
       const result = await service.getPresignedUrl('d1');
@@ -166,9 +188,15 @@ describe('DocumentsService', () => {
     });
 
     it('devrait générer URL via MinIO et la mettre en cache si MISS', async () => {
-      mockPrisma.document.findUnique.mockResolvedValueOnce({ id: 'd1', fichierUrl: 'path/file.pdf', nom: 'f.pdf' });
+      mockPrisma.document.findUnique.mockResolvedValueOnce({
+        id: 'd1',
+        fichierUrl: 'path/file.pdf',
+        nom: 'f.pdf',
+      });
       mockRedisClient.get.mockResolvedValueOnce(null);
-      mockStorage.generatePresignedUrl.mockResolvedValueOnce('https://minio/presigned-new');
+      mockStorage.generatePresignedUrl.mockResolvedValueOnce(
+        'https://minio/presigned-new',
+      );
       mockRedisClient.setex.mockResolvedValueOnce('OK');
 
       const result = await service.getPresignedUrl('d1');
@@ -184,12 +212,16 @@ describe('DocumentsService', () => {
   describe('DOC-09 : checkIntegrity', () => {
     it('devrait lever NotFoundException si le document est introuvable', async () => {
       mockPrisma.document.findUnique.mockResolvedValueOnce(null);
-      await expect(service.checkIntegrity('bad-id')).rejects.toThrow(NotFoundException);
+      await expect(service.checkIntegrity('bad-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('devrait retourner integrityOk: true si le hash correspond', async () => {
       const fakeContent = 'contenu-connu-du-fichier';
-      const expectedHash = createHash('sha256').update(fakeContent).digest('hex');
+      const expectedHash = createHash('sha256')
+        .update(fakeContent)
+        .digest('hex');
       mockPrisma.document.findUnique.mockResolvedValueOnce({
         id: 'd2',
         fichierUrl: 'path/file.pdf',
@@ -201,7 +233,9 @@ describe('DocumentsService', () => {
 
       const result = await service.checkIntegrity('d2');
       expect(result.integrityOk).toBe(true);
-      expect(mockEventPublisher.publishDocumentValidated).not.toHaveBeenCalled();
+      expect(
+        mockEventPublisher.publishDocumentValidated,
+      ).not.toHaveBeenCalled();
     });
 
     it('devrait retourner integrityOk: false et publier un événement si hash altéré', async () => {

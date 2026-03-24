@@ -18,7 +18,10 @@ export class UploadResponseDto {
   @ApiProperty({ description: 'Nom original du fichier' })
   nom: string;
 
-  @ApiProperty({ description: 'Type MIME réel du fichier', example: 'application/pdf' })
+  @ApiProperty({
+    description: 'Type MIME réel du fichier',
+    example: 'application/pdf',
+  })
   typeMime: string;
 
   @ApiProperty({ description: 'Taille en bytes', example: 204800 })
@@ -49,7 +52,7 @@ export class PresignedUrlResponseDto {
   url: string;
 
   @ApiProperty({
-    description: 'Timestamp UNIX d\'expiration de l\'URL',
+    description: "Timestamp UNIX d'expiration de l'URL",
     example: 1700000300,
   })
   expiresAt: number;
@@ -61,7 +64,7 @@ export class PresignedUrlResponseDto {
   ttlSeconds: number;
 
   @ApiProperty({
-    description: 'Si true, l\'URL vient du cache Redis (pas recalculée)',
+    description: "Si true, l'URL vient du cache Redis (pas recalculée)",
     example: false,
   })
   fromCache: boolean;
