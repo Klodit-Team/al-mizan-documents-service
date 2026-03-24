@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from './../src/app.module';
 import { StorageService } from '../src/storage/storage.service';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -40,6 +40,14 @@ describe('AppController (e2e)', () => {
     $disconnect: jest.fn(),
   };
 
+  const mockRedisClient = {
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue('OK'),
+    del: jest.fn().mockResolvedValue(1),
+    on: jest.fn(),
+    quit: jest.fn().mockResolvedValue('OK'),
+  };
+
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -48,6 +56,8 @@ describe('AppController (e2e)', () => {
       .useValue(mockStorageService)
       .overrideProvider(PrismaService)
       .useValue(mockPrismaService)
+      .overrideProvider('REDIS_CLIENT')
+      .useValue(mockRedisClient)
       .compile();
 
     app = moduleFixture.createNestApplication();
