@@ -1,39 +1,42 @@
 services:
   document-service:
     build: .
+    container_name: al-mizan-document-service
     ports:
       - "8005:8005"
     environment:
       PORT: "8005"
-      NODE_ENV: development
-      # Pointeur vers le Postgres dédié aux documents
+      NODE_ENV: production
+      # Base de données propre au Document Service
       DATABASE_URL: postgresql://postgres:password@document-postgres:5432/document_db
-      
-      # Pointeurs dynamiques vers VOS CONTENEURS DÉJÀ EXISTANTS (Al-Mizan AO)
-      MINIO_ENDPOINT: al-mizan-ao-minio
-      MINIO_PORT: 9000
+
+      # Infrastructure partagée (via al-mizan-network)
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
       MINIO_USE_SSL: "false"
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET_NAME: al-mizan-docs
-      
-      REDIS_HOST: al-mizan-ao-redis
-      REDIS_PORT: 6379
-      REDIS_URL: "redis://al-mizan-ao-redis:6379"
-      
-      RABBITMQ_URL: "amqp://guest:guest@al-mizan-ao-rabbitmq:5672"
-      
+
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_URL: "redis://redis:6379"
+
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+
       PRESIGNED_URL_TTL_SECONDS: "300"
       UPLOAD_MAX_FILE_SIZE: "52428800"
     depends_on:
-      - document-postgres
+      document-postgres:
+        condition: service_started
+    restart: unless-stopped
     networks:
-      - shared-network
+      - al-mizan-network
 
-  # On garde uniquement un Postgres pour la DB Document (chaque microservice a sa propre DB)
+  # Base de données dédiée au Document Service (chaque microservice a la sienne)
   document-postgres:
-    # On utilise l'image postgres:15-alpine que vous avez DÉJÀ TÉLÉCHARGÉE sur votre machine pour Appel d'Offres afin d'éviter un "repull"
     image: postgres:15-alpine
+    container_name: al-mizan-document-postgres
     environment:
       POSTGRES_DB: document_db
       POSTGRES_USER: postgres
@@ -41,16 +44,20 @@ services:
     volumes:
       - document-postgres-data:/var/lib/postgresql/data
     ports:
-      # Port 5433 côté machine pour ne pas créer de conflit avec votre Postgres AO 5432
       - "5433:5432"
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d document_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
-      - shared-network
+      - al-mizan-network
 
 volumes:
   document-postgres-data:
+    name: al-mizan-document-postgres-data
 
 networks:
-  shared-network:
-    # On se greffe directement sur le réseau Docker de votre projet Appel d'Offres existant !
-    name: al-mizan-appel-offres-service_default
+  al-mizan-network:
+    name: al-mizan-network
     external: true
