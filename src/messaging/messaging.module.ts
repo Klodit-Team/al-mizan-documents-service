@@ -3,6 +3,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DocumentEventPublisher } from './publishers/document-event.publisher';
 import { OcrResultConsumer } from './consumers/ocr-result.consumer';
+import { AmqpPublisherService } from './amqp-publisher.service';
+import { UserDocsConsumer } from './consumers/user-docs.consumer';
 
 @Module({
   imports: [
@@ -27,10 +29,29 @@ import { OcrResultConsumer } from './consumers/ocr-result.consumer';
           },
         }),
       },
+      {
+        name: 'RABBITMQ_PUBLISHER',
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.RMQ,
+          options: {
+            urls: [
+              configService.get<string>(
+                'RABBITMQ_URL',
+                'amqp://localhost:5672',
+              ),
+            ],
+            // Publisher-only client: send messages to the central topic exchange
+            exchange: configService.get<string>('RABBITMQ_EXCHANGE', 'al-mizan.events'),
+            exchangeType: 'topic',
+          },
+        }),
+      },
     ]),
   ],
-  controllers: [OcrResultConsumer],
-  providers: [DocumentEventPublisher],
+  controllers: [OcrResultConsumer, UserDocsConsumer],
+  providers: [DocumentEventPublisher, AmqpPublisherService],
   exports: [DocumentEventPublisher], // Export pour être utilisable partout
 })
 export class MessagingModule {}

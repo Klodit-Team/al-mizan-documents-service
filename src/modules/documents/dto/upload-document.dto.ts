@@ -11,8 +11,14 @@
 // =========================================================
 
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID, IsEnum, IsNotEmpty } from 'class-validator';
+import { IsUUID, IsEnum, IsNotEmpty, IsOptional } from 'class-validator';
 import { OwnerType } from '@prisma/client';
+
+export enum OrganisationDocumentType {
+  NIF = 'NIF',
+  NIS = 'NIS',
+  DENOMINATION = 'DENOMINATION',
+}
 
 export class UploadDocumentDto {
   @ApiProperty({
@@ -34,4 +40,22 @@ export class UploadDocumentDto {
   })
   @IsNotEmpty({ message: 'ownerType est obligatoire' })
   ownerType: OwnerType;
+
+  @ApiProperty({
+    description: "Type du document d'organisation (NIF | NIS | DENOMINATION). Obligatoire si ownerType = ORGANISATION",
+    enum: OrganisationDocumentType,
+    required: false,
+  })
+  @IsEnum(OrganisationDocumentType)
+  @IsOptional()
+  documentType?: OrganisationDocumentType;
+
+  @ApiProperty({
+    description: "UUID de l'utilisateur qui a uploadé (optionnel)",
+    required: false,
+    format: 'uuid',
+  })
+  @IsUUID('4')
+  @IsOptional()
+  uploadedBy?: string;
 }

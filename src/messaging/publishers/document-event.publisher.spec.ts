@@ -84,4 +84,34 @@ describe('DocumentEventPublisher', () => {
       expect.any(Object),
     );
   });
+
+  it('devrait publier les événements organisation avec les routing keys exactes', async () => {
+    const payload = {
+      event_id: 'e1',
+      correlation_id: 'c1',
+      organisation_id: 'org-1',
+      status: 'success',
+      uploaded_documents: [],
+      failed_documents: [],
+      processed_at: new Date().toISOString(),
+    };
+
+    await publisher.publishOrganisationDocumentsUploaded(payload);
+    expect(mockClientProxy.emit).toHaveBeenCalledWith(
+      'documentation.organisation.documents.uploaded',
+      payload,
+    );
+
+    const fpayload = {
+      ...payload,
+      status: 'failed',
+      failed_documents: [{ type: 'NIF', file_name: 'a.pdf', reason: 'err' }],
+    };
+
+    await publisher.publishOrganisationDocumentsFailed(fpayload);
+    expect(mockClientProxy.emit).toHaveBeenCalledWith(
+      'documentation.organisation.documents.failed',
+      fpayload,
+    );
+  });
 });

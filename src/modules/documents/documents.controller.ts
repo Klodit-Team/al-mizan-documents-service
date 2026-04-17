@@ -52,6 +52,8 @@ export class DocumentsController {
         file: { type: 'string', format: 'binary' },
         ownerId: { type: 'string', format: 'uuid' },
         ownerType: { type: 'string', enum: ['USER', 'ORGANISATION'] },
+        documentType: { type: 'string', enum: ['NIF', 'NIS', 'DENOMINATION'] },
+        uploadedBy: { type: 'string', format: 'uuid' },
       },
     },
   })

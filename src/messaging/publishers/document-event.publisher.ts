@@ -2,14 +2,41 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { PieceType } from '@prisma/client';
 import { lastValueFrom } from 'rxjs';
+import { AmqpPublisherService } from '../amqp-publisher.service';
 
 @Injectable()
 export class DocumentEventPublisher {
   private readonly logger = new Logger(DocumentEventPublisher.name);
 
   constructor(
-    @Inject('RABBITMQ_SERVICE') private readonly client: ClientProxy,
+    @Inject('RABBITMQ_PUBLISHER') private readonly client: ClientProxy,
+    private readonly amqpPublisher: AmqpPublisherService,
   ) {}
+
+  // =========================================================
+  // Events for compatibility with users-service (organisation flow)
+  // routing keys used by users-service must be exact strings below.
+  // =========================================================
+  async publishOrganisationDocumentsUploaded(payload: any) {
+    this.logger.log(
+      `Publishing event: documentation.organisation.documents.uploaded for organisation ${payload.organisation_id}`,
+    );
+    // Use raw AMQP publisher to ensure persistent JSON messages on the canonical exchange
+    await this.amqpPublisher.publish(
+      'documentation.organisation.documents.uploaded',
+      payload,
+    );
+  }
+
+  async publishOrganisationDocumentsFailed(payload: any) {
+    this.logger.log(
+      `Publishing event: documentation.organisation.documents.failed for organisation ${payload.organisation_id}`,
+    );
+    await this.amqpPublisher.publish(
+      'documentation.organisation.documents.failed',
+      payload,
+    );
+  }
 
   async publishDocumentUploaded(payload: {
     documentId: string;

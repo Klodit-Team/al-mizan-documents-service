@@ -16,6 +16,14 @@ export interface MinioConfig {
   bucketName: string;
 }
 
+// Charger explicitement le fichier .env si présent. Ceci rend la
+// configuration plus robuste lorsque l'application est lancée
+// depuis des environnements où @nestjs/config n'aurait pas encore
+// injecté les variables dans process.env au moment de l'instanciation.
+// On utilise dotenv en fallback.
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 /**
  * Lit les variables d'environnement et retourne un objet typé.
  * Lance une erreur explicite si une variable obligatoire est absente.

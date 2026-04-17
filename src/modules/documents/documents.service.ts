@@ -9,6 +9,7 @@ import {
   Logger,
   InternalServerErrorException,
   Inject,
+  BadRequestException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
@@ -48,21 +49,53 @@ export class DocumentsService {
     file: Express.Multer.File,
     uploadDto: UploadDocumentDto,
   ): Promise<UploadResponseDto> {
+    const correlationId = uuidv4();
     const hashSha256 = this.computeSha256(file.buffer);
     this.logger.debug(`Hash calculé: ${hashSha256} | "${file.originalname}"`);
 
     const existingDoc = await this.prisma.document.findUnique({
       where: { hashSha256 },
-      select: { id: true, nom: true },
+      select: { id: true, nom: true, fichierUrl: true },
     });
 
     if (existingDoc) {
       this.logger.warn(
         `Doublon: "${file.originalname}" = document "${existingDoc.nom}" (${existingDoc.id})`,
       );
+      // Pour compatibilité users-service: publier un événement idempotent
+      try {
+        if (uploadDto.ownerType === 'ORGANISATION') {
+          await this.eventPublisher.publishOrganisationDocumentsUploaded({
+            event_id: uuidv4(),
+            correlation_id: correlationId,
+            organisation_id: uploadDto.ownerId,
+            user_id: uploadDto.uploadedBy || null,
+            status: 'success',
+            uploaded_documents: [
+              {
+                type: uploadDto.documentType || 'DENOMINATION',
+                document_id: existingDoc.id,
+                storage_key: existingDoc.fichierUrl,
+                file_name: existingDoc.nom,
+                status: 'uploaded',
+              },
+            ],
+            failed_documents: [],
+            processed_at: new Date().toISOString(),
+          });
+        }
+      } catch (e) {
+        this.logger.warn('Impossible de publier l\'événement de doublon: ' + (e as Error).message);
+      }
+
       throw new ConflictException(
         `Ce fichier existe déjà dans le système (id: ${existingDoc.id}).`,
       );
+    }
+
+    // Validation pour les uploads d'organisation : documentType obligatoire
+    if (uploadDto.ownerType === 'ORGANISATION' && !uploadDto.documentType) {
+      throw new BadRequestException('documentType est requis pour les uploads ORGANISATION');
     }
 
     const fileUuid = uuidv4();
@@ -79,6 +112,31 @@ export class DocumentsService {
       );
     } catch (error) {
       this.logger.error(`Échec upload MinIO: ${(error as Error).message}`);
+      // Publier événement d'échec pour users-service si c'est un document d'organisation
+      try {
+        if (uploadDto.ownerType === 'ORGANISATION') {
+          await this.eventPublisher.publishOrganisationDocumentsFailed({
+            event_id: uuidv4(),
+            correlation_id: correlationId,
+            organisation_id: uploadDto.ownerId,
+            user_id: uploadDto.uploadedBy || null,
+            status: 'failed',
+            uploaded_documents: [],
+            failed_documents: [
+              {
+                type: uploadDto.documentType || 'DENOMINATION',
+                file_name: file.originalname,
+                reason: (error as Error).message,
+              },
+            ],
+            error: (error as Error).message,
+            processed_at: new Date().toISOString(),
+          });
+        }
+      } catch (e) {
+        this.logger.warn('Impossible de publier l\'événement d\'échec upload: ' + (e as Error).message);
+      }
+
       throw new InternalServerErrorException(
         'Erreur lors du stockage du fichier. Veuillez réessayer.',
       );
@@ -101,11 +159,62 @@ export class DocumentsService {
       this.logger.log(
         `✅ Document créé: id=${document.id} | "${file.originalname}"`,
       );
+
+      // Publier l'événement organisation si applicable
+      try {
+        if (uploadDto.ownerType === 'ORGANISATION') {
+          await this.eventPublisher.publishOrganisationDocumentsUploaded({
+            event_id: uuidv4(),
+            correlation_id: correlationId,
+            organisation_id: uploadDto.ownerId,
+            user_id: uploadDto.uploadedBy || null,
+            status: 'success',
+            uploaded_documents: [
+              {
+                type: uploadDto.documentType || 'DENOMINATION',
+                document_id: document.id,
+                storage_key: document.fichierUrl,
+                file_name: document.nom,
+                status: 'uploaded',
+              },
+            ],
+            failed_documents: [],
+            processed_at: new Date().toISOString(),
+          });
+        }
+      } catch (e) {
+        this.logger.warn('Impossible de publier l\'événement uploaded: ' + (e as Error).message);
+      }
     } catch {
       this.logger.error(
         `Prisma échoué → rollback MinIO: suppression de "${uploadedObjectName}"`,
       );
       await this.storageService.deleteObject(uploadedObjectName);
+      // Publier un événement d'échec global si organisation
+      try {
+        if (uploadDto.ownerType === 'ORGANISATION') {
+          await this.eventPublisher.publishOrganisationDocumentsFailed({
+            event_id: uuidv4(),
+            correlation_id: correlationId,
+            organisation_id: uploadDto.ownerId,
+            user_id: uploadDto.uploadedBy || null,
+            status: 'failed',
+            uploaded_documents: [],
+            failed_documents: [
+              {
+                type: uploadDto.documentType || 'DENOMINATION',
+                file_name: file.originalname,
+                reason: 'Failed to persist metadata',
+              },
+            ],
+            error: 'Failed to persist metadata',
+            processed_at: new Date().toISOString(),
+          });
+        }
+      } catch (e) {
+        this.logger.warn('Impossible de publier l\'événement failed prisma: ' + (e as Error).message);
+      }
+
       throw new InternalServerErrorException(
         "Erreur lors de l'enregistrement des métadonnées. Le fichier n'a pas été conservé.",
       );

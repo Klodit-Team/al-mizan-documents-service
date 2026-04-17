@@ -89,12 +89,31 @@ async function bootstrap() {
 
   const port = parseInt(process.env.PORT ?? '8005', 10);
 
-  // Configuration du microservice RabbitMQ pour consommer les événements (Consumer)
+  // Configuration du microservice RabbitMQ pour consommer les événements.
+  // Keep the existing OCR results queue as-is to avoid changing existing
+  // integrations.
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.RMQ,
     options: {
       urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
       queue: 'documents.ocr.results',
+      queueOptions: {
+        durable: true,
+      },
+    },
+  });
+
+  // Additional microservice connection to consume users-service ACKs and
+  // organisation document events from the central topic exchange. This
+  // uses a dedicated queue so we don't alter existing queues used by other
+  // integrations.
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.RMQ,
+    options: {
+      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
+      queue: process.env.RABBITMQ_USER_ACK_QUEUE || 'documents.user.acks',
+      exchange: process.env.RABBITMQ_EXCHANGE || 'al-mizan.events',
+      exchangeType: 'topic',
       queueOptions: {
         durable: true,
       },
