@@ -28,6 +28,8 @@ logs/
 # ── Coverage / Tests ─────────────────────────────
 coverage/
 .nyc_output/
+tmp/
+e2e_out.txt
 
 # ── IDE / Editeurs ────────────────────────────────
 .vscode/
