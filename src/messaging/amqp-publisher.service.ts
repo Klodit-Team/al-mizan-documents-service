@@ -12,7 +12,7 @@ export class AmqpPublisherService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
-    const url = process.env.RABBITMQ_URL || 'amqp://localhost:5673';
+    const url = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
     try {
       this.connection = await amqp.connect(url);
       this.channel = await this.connection.createChannel();

@@ -95,7 +95,7 @@ async function bootstrap() {
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.RMQ,
     options: {
-      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5673'],
+      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
       queue: 'documents.ocr.results',
       queueOptions: {
         durable: true,
@@ -110,7 +110,7 @@ async function bootstrap() {
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.RMQ,
     options: {
-      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5673'],
+      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
       queue: process.env.RABBITMQ_USER_ACK_QUEUE || 'documents.user.acks',
       exchange: process.env.RABBITMQ_EXCHANGE || 'al-mizan.events',
       exchangeType: 'topic',

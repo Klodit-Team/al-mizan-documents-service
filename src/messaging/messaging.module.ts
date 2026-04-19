@@ -19,7 +19,7 @@ import { UserDocsConsumer } from './consumers/user-docs.consumer';
             urls: [
               configService.get<string>(
                 'RABBITMQ_URL',
-                'amqp://localhost:5673',
+                'amqp://localhost:5672',
               ),
             ],
             queue: 'documents.ocr.results',
@@ -39,7 +39,7 @@ import { UserDocsConsumer } from './consumers/user-docs.consumer';
             urls: [
               configService.get<string>(
                 'RABBITMQ_URL',
-                'amqp://localhost:5673',
+                'amqp://localhost:5672',
               ),
             ],
             // Publisher-only client: send messages to the central topic exchange
