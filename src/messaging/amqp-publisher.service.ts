@@ -12,7 +12,7 @@ export class AmqpPublisherService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
-    const url = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
+    const url = process.env.RABBITMQ_URL || 'amqp://localhost:5673';
     try {
       this.connection = await amqp.connect(url);
       this.channel = await this.connection.createChannel();
@@ -21,13 +21,14 @@ export class AmqpPublisherService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`AMQP publisher connected and exchange asserted: ${exchange}`);
     } catch (err) {
       this.logger.error('Failed to initialize AMQP publisher', (err as Error).message);
-      throw err;
+      this.logger.warn('Continuing without AMQP publisher (degraded mode)');
     }
   }
 
   async publish(routingKey: string, payload: any) {
     if (!this.channel) {
-      throw new Error('AMQP channel is not initialized');
+      this.logger.warn(`AMQP channel unavailable. Skipping publish for ${routingKey}`);
+      return false;
     }
 
     const exchange = this.getExchange();

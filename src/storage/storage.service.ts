@@ -30,6 +30,7 @@ export class StorageService implements OnModuleInit {
   private readonly logger = new Logger(StorageService.name);
   private readonly minioClient: Minio.Client;
   private readonly bucketName: string;
+  private storageReady = true;
 
   constructor() {
     // Lire la config depuis les variables d'environnement
@@ -69,7 +70,8 @@ export class StorageService implements OnModuleInit {
       this.logger.error(
         `❌ Impossible d'initialiser le bucket MinIO: ${(error as Error).message}`,
       );
-      throw error;
+      this.storageReady = false;
+      this.logger.warn('Service documents demarre en mode degrade (MinIO indisponible)');
     }
   }
 
@@ -207,6 +209,10 @@ export class StorageService implements OnModuleInit {
    * Vérifie que MinIO est joignable. Utilisé par GET /health/ready.
    */
   async isHealthy(): Promise<boolean> {
+    if (!this.storageReady) {
+      return false;
+    }
+
     try {
       await this.minioClient.bucketExists(this.bucketName);
       return true;

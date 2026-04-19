@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -32,8 +32,8 @@ enum TypeAnalyse {
 }
 
 model Document {
-  id            String    @id @default(uuid()) @db.Uuid
-  ownerId       String    @db.Uuid
+  id            String    @id @default(uuid()) @db.Char(36)
+  ownerId       String    @db.Char(36)
   ownerType     OwnerType
   nom           String    @db.VarChar(255)
   typeMime      String    @db.VarChar(100)
@@ -50,9 +50,9 @@ model Document {
 }
 
 model PieceAdministrative {
-  id             String    @id @default(uuid()) @db.Uuid
-  soumissionId   String    @db.Uuid
-  documentId     String    @db.Uuid
+  id             String    @id @default(uuid()) @db.Char(36)
+  soumissionId   String    @db.Char(36)
+  documentId     String    @db.Char(36)
   type           PieceType
   designation    String?   @db.VarChar(255)
   isValide       Boolean?
@@ -68,9 +68,9 @@ model PieceAdministrative {
 }
 
 model OcrAnalyse {
-  id              String       @id @default(uuid()) @db.Uuid
-  documentId      String       @db.Uuid
-  pieceId         String?      @db.Uuid
+  id              String       @id @default(uuid()) @db.Char(36)
+  documentId      String       @db.Char(36)
+  pieceId         String?      @db.Char(36)
   typeAnalyse     TypeAnalyse
   texteExtrait    String?      @db.Text
   scoreConfiance  Decimal?     @db.Decimal(5, 4)
@@ -85,3 +85,4 @@ model OcrAnalyse {
   @@index([pieceId])
   @@map("ocr_analyses")
 }
+

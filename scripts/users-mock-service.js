@@ -2,7 +2,7 @@ const amqp = require('amqplib');
 const fs = require('fs');
 const path = require('path');
 
-const RABBIT_URL = process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
+const RABBIT_URL = process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5673';
 const EXCHANGE = 'amq.topic';
 const KEYS = [
   'documentation.organisation.documents.uploaded',

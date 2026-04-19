@@ -95,7 +95,7 @@ async function bootstrap() {
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.RMQ,
     options: {
-      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
+      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5673'],
       queue: 'documents.ocr.results',
       queueOptions: {
         durable: true,
@@ -110,7 +110,7 @@ async function bootstrap() {
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.RMQ,
     options: {
-      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
+      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5673'],
       queue: process.env.RABBITMQ_USER_ACK_QUEUE || 'documents.user.acks',
       exchange: process.env.RABBITMQ_EXCHANGE || 'al-mizan.events',
       exchangeType: 'topic',
@@ -120,8 +120,16 @@ async function bootstrap() {
     },
   });
 
-  await app.startAllMicroservices();
   await app.listen(port);
+
+  app
+    .startAllMicroservices()
+    .then(() => {
+      logger.log('RabbitMQ microservices started');
+    })
+    .catch((error) => {
+      logger.error('RabbitMQ microservices failed to start; HTTP API remains available', error?.stack);
+    });
 
   logger.log(`🚀 Document Service démarré sur le port ${port}`);
   logger.log(`📚 Swagger UI disponible sur http://localhost:${port}/api/docs`);
