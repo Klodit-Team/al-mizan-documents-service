@@ -6,11 +6,11 @@ services:
       - "8005:8005"
     environment:
       PORT: "8005"
-      NODE_ENV: production
-      # Base de données propre au Document Service
-      DATABASE_URL: postgresql://postgres:password@document-postgres:5432/document_db
+      NODE_ENV: development
+      # CHANGEMENT : Utilisation de MySQL
+      DATABASE_URL: "mysql://root:root@document-db-mysql:3306/document_db"
 
-      # Infrastructure partagée (via al-mizan-network)
+      # Infrastructure partagée (MinIO)
       MINIO_ENDPOINT: minio
       MINIO_PORT: "9000"
       MINIO_USE_SSL: "false"
@@ -18,44 +18,39 @@ services:
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET_NAME: al-mizan-docs
 
-      REDIS_HOST: redis
+      # CHANGEMENT : Utilisation de redis-cache
+      REDIS_HOST: redis-cache
       REDIS_PORT: "6379"
-      REDIS_URL: "redis://redis:6379"
+      REDIS_URL: "redis://redis-cache:6379"
 
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
 
       PRESIGNED_URL_TTL_SECONDS: "300"
       UPLOAD_MAX_FILE_SIZE: "52428800"
     depends_on:
-      document-postgres:
+      document-db-mysql:
         condition: service_started
     restart: unless-stopped
     networks:
       - al-mizan-network
 
-  # Base de données dédiée au Document Service (chaque microservice a la sienne)
-  document-postgres:
-    image: postgres:15-alpine
-    container_name: al-mizan-document-postgres
+  # CHANGEMENT : Base de données MySQL dédiée au Document Service
+  document-db-mysql:
+    image: mysql:8.0
+    container_name: al-mizan-document-db-mysql
     environment:
-      POSTGRES_DB: document_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      MYSQL_DATABASE: document_db
+      MYSQL_ROOT_PASSWORD: root
     volumes:
-      - document-postgres-data:/var/lib/postgresql/data
+      - document-mysql-data:/var/lib/mysql
     ports:
-      - "5433:5432"
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -d document_db']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - "3308:3306" # Port 3308 sur ton PC pour éviter les conflits
     networks:
       - al-mizan-network
 
 volumes:
-  document-postgres-data:
-    name: al-mizan-document-postgres-data
+  document-mysql-data:
+    name: al-mizan-document-mysql-data
 
 networks:
   al-mizan-network:
