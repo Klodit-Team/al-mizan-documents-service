@@ -21,6 +21,6 @@ jobs:
             echo "🚀 Starting Deployment for documents-service..."
             cd ~/documents-service
             git pull
-            cd ~/al-mizan-deployment
-            sudo docker-compose up -d --build documents-service
+            cd ~/al-mizan-deployments
+            docker compose up -d --build documents-service
             echo "✅ Deployment Successful!"
