@@ -1,6 +1,7 @@
 ﻿import { Controller, Post, Param, ParseUUIDPipe } from '@nestjs/common';
 import { PkiService } from './pki.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { PkiVerificationResponse } from './entities/pki-verification.entity';
 
 @ApiTags('SÃ©curitÃ© PKI & Certificats')
 @Controller('documents')
@@ -9,7 +10,7 @@ export class PkiController {
 
   @Post(':id/verify-certificate')
   @ApiOperation({
-    summary: 'VÃ©rifier la validitÃ© des certificats PKI (DOC-07)',
+    summary: 'Vérifier la validité des certificats PKI (DOC-07)',
   })
   @ApiParam({
     name: 'id',
@@ -18,14 +19,14 @@ export class PkiController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Certificat cryptographique analysÃ© avec succÃ¨s.',
+    description: 'Certificat cryptographique analysé avec succès.',
+    type: PkiVerificationResponse
   })
   @ApiResponse({
     status: 400,
-    description: 'Aucune signature Pades trouvÃ©e dans les octets',
+    description: 'Aucune signature Pades trouvée dans les octets',
   })
-  @ApiResponse({ status: 404, description: 'Document introuvable' })
-  async verifyCertificate(@Param('id', ParseUUIDPipe) id: string) {
+  async verifyCertificate(@Param('id', ParseUUIDPipe) id: string): Promise<PkiVerificationResponse> {
     return this.pkiService.verifyCertificate(id);
   }
 }
