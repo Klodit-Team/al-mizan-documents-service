@@ -23,8 +23,5 @@ COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/prisma ./prisma
 COPY package*.json ./
 
-# Script de démarrage : migration BDD puis lancement NestJS
-COPY entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
-
-CMD ["sh", "entrypoint.sh"]
+# Migration BDD via prisma db push puis lancement NestJS
+CMD ["sh", "-c", "npx prisma db push && node dist/main"]
