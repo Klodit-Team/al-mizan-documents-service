@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DocumentEventPublisher } from './document-event.publisher';
 import { PieceType } from '@prisma/client';
 import { of } from 'rxjs';
+import { AmqpPublisherService } from '../amqp-publisher.service';
 
 describe('DocumentEventPublisher', () => {
   let publisher: DocumentEventPublisher;
@@ -10,13 +11,21 @@ describe('DocumentEventPublisher', () => {
     emit: jest.fn().mockReturnValue(of('published')), // Mock rxjs Observable behavior
   };
 
+  const mockAmqpPublisherService = {
+    publish: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DocumentEventPublisher,
         {
-          provide: 'RABBITMQ_SERVICE',
+          provide: 'RABBITMQ_PUBLISHER',
           useValue: mockClientProxy,
+        },
+        {
+          provide: AmqpPublisherService,
+          useValue: mockAmqpPublisherService,
         },
       ],
     }).compile();
@@ -97,7 +106,7 @@ describe('DocumentEventPublisher', () => {
     };
 
     await publisher.publishOrganisationDocumentsUploaded(payload);
-    expect(mockClientProxy.emit).toHaveBeenCalledWith(
+    expect(mockAmqpPublisherService.publish).toHaveBeenCalledWith(
       'documentation.organisation.documents.uploaded',
       payload,
     );
@@ -109,7 +118,7 @@ describe('DocumentEventPublisher', () => {
     };
 
     await publisher.publishOrganisationDocumentsFailed(fpayload);
-    expect(mockClientProxy.emit).toHaveBeenCalledWith(
+    expect(mockAmqpPublisherService.publish).toHaveBeenCalledWith(
       'documentation.organisation.documents.failed',
       fpayload,
     );
