@@ -1,24 +1,23 @@
-﻿import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class ValidatePieceDto {
   @ApiProperty({
-    description:
-      'DÃ©cision de la commission (true = conforme, false = rejetÃ©e)',
+    description: 'Décision de la commission (true = conforme, false = rejetée)',
     example: true,
   })
   @IsBoolean({
-    message: 'La dÃ©cision de la commission doit Ãªtre un boolÃ©en',
+    message: 'La décision de la commission doit être un booléen',
   })
-  @IsNotEmpty({ message: 'La dÃ©cision de la commission est requise' })
+  @IsNotEmpty({ message: 'La décision de la commission est requise' })
   isValide: boolean;
 
   @ApiPropertyOptional({
     description:
-      'Raison du rejet de la piÃ¨ce (gÃ©nÃ©ralement requis si isValide est false)',
-    example: 'Date de validitÃ© de la CNAS dÃ©passÃ©e.',
+      'Raison du rejet de la pièce (généralement requis si isValide est false)',
+    example: 'Date de validité de la CNAS dépassée.',
   })
-  @IsString({ message: 'La raison doit Ãªtre une chaÃ®ne de caractÃ¨res' })
+  @IsString({ message: 'La raison doit être une chaîne de caractères' })
   @IsOptional()
   reason?: string;
 }

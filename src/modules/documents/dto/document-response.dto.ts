@@ -72,27 +72,50 @@ export class PresignedUrlResponseDto {
 
 // ── Réponse métadonnées document ──────────────────────────
 export class DocumentMetaResponseDto {
-  @ApiProperty()
+  @ApiProperty({
+    description: 'UUID unique du document',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   id: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'UUID du propriétaire (Utilisateur ou Organisation)',
+    example: '223e4567-e89b-12d3-a456-426614174001',
+  })
   ownerId: string;
 
-  @ApiProperty({ enum: OwnerType })
+  @ApiProperty({
+    enum: OwnerType,
+    description: 'Type de propriétaire',
+    example: OwnerType.USER,
+  })
   ownerType: OwnerType;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: "Nom d'origine du fichier",
+    example: 'justificatif_nif.pdf',
+  })
   nom: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Type MIME du fichier',
+    example: 'application/pdf',
+  })
   typeMime: string;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({
+    nullable: true,
+    description: 'Taille du fichier en octets (null si non renseigné)',
+    example: 102400,
+  })
   tailleOctets: number | null;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Hash cryptographique SHA-256 du contenu',
+    example: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+  })
   hashSha256: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: "Date d'enregistrement" })
   createdAt: Date;
 }

@@ -27,16 +27,34 @@ export class AdministrativePiecesController {
   @Post(':submissionId')
   @ApiOperation({
     summary: 'Joindre une pièce administrative à une soumission (DOC-03)',
+    description:
+      "Permet d'associer un document physique préalablement téléversé sur MinIO à une pièce administrative requise pour une soumission d'appel d'offres spécifique.",
   })
   @ApiParam({
     name: 'submissionId',
-    description: "ID de la soumission d'appel d'offres (UUID)",
-    type: 'string',
+    description: "ID unique de la soumission d'appel d'offres (UUID)",
+    type: String,
+    format: 'uuid',
   })
   @ApiResponse({
     status: 201,
-    description: 'La pièce a été rattachée avec succès.',
+    description:
+      'La pièce administrative a été rattachée à la soumission avec succès.',
     type: AttachPieceResponse,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'ID de soumission invalide, données de liaison incorrectes ou document physique inexistant.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Soumission d'appel d'offres introuvable.",
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Conflit : une pièce administrative de ce type est déjà liée à cette soumission.',
   })
   async attachPiece(
     @Param('submissionId', ParseUUIDPipe) submissionId: string,
@@ -51,16 +69,27 @@ export class AdministrativePiecesController {
   @Get(':submissionId')
   @ApiOperation({
     summary: "Lister les pièces administratives d'une soumission (DOC-10)",
+    description:
+      "Récupère la liste complète des pièces administratives (ex: NIF, NIS, Registre de commerce) rattachées à une soumission d'offre spécifique avec les détails de leurs documents physiques.",
   })
   @ApiParam({
     name: 'submissionId',
-    description: 'ID de la soumission (UUID)',
-    type: 'string',
+    description: "ID de la soumission d'offre (UUID)",
+    type: String,
+    format: 'uuid',
   })
   @ApiResponse({
     status: 200,
-    description: 'Liste des pièces avec leurs documents physiques.',
+    description: 'Liste des pièces administratives récupérée avec succès.',
     type: [PieceAdministrative],
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'ID de soumission non valide.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Soumission introuvable dans le système.',
   })
   async getPiecesBySubmission(
     @Param('submissionId', ParseUUIDPipe) submissionId: string,
@@ -71,16 +100,28 @@ export class AdministrativePiecesController {
   @Patch('piece/:pieceId/validate')
   @ApiOperation({
     summary: 'Valider ou invalider une pièce administrative (DOC-04)',
+    description:
+      "Permet au contrôleur ou à la commission d'évaluation de marquer une pièce administrative comme valide (conforme) ou rejetée (non conforme) avec justification obligatoire.",
   })
   @ApiParam({
     name: 'pieceId',
-    description: 'ID de la pièce administrative à valider (UUID)',
-    type: 'string',
+    description: 'ID unique de la pièce administrative à valider (UUID)',
+    type: String,
+    format: 'uuid',
   })
   @ApiResponse({
     status: 200,
-    description: 'Le statut de la pièce a été mis à jour.',
+    description:
+      'Le statut de validation de la pièce a été mis à jour avec succès.',
     type: ValidatePieceResponse,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'ID de pièce non valide ou données de validation incorrectes.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pièce administrative introuvable dans le système.',
   })
   async validatePiece(
     @Param('pieceId', ParseUUIDPipe) pieceId: string,
