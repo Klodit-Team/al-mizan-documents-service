@@ -20,8 +20,10 @@ export class AmqpPublisherService implements OnModuleInit, OnModuleDestroy {
     const url = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
     try {
       this.connection = await connect(url);
+
       this.channel = await this.connection.createChannel();
       const exchange = this.getExchange();
+
       await this.channel.assertExchange(exchange, 'topic', { durable: true });
       this.logger.log(
         `AMQP publisher connected and exchange asserted: ${exchange}`,
@@ -45,6 +47,7 @@ export class AmqpPublisherService implements OnModuleInit, OnModuleDestroy {
 
     const exchange = this.getExchange();
     const buffer = Buffer.from(JSON.stringify(payload));
+
     const ok = this.channel.publish(exchange, routingKey, buffer, {
       persistent: true,
       contentType: 'application/json',
@@ -60,6 +63,7 @@ export class AmqpPublisherService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     try {
       await this.channel?.close();
+
       await this.connection?.close();
     } catch {
       this.logger.warn('Error while closing AMQP publisher connection');
