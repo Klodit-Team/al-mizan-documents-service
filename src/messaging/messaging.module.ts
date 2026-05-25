@@ -43,7 +43,10 @@ import { UserDocsConsumer } from './consumers/user-docs.consumer';
               ),
             ],
             // Publisher-only client: send messages to the central topic exchange
-            exchange: configService.get<string>('RABBITMQ_EXCHANGE', 'al-mizan.events'),
+            exchange: configService.get<string>(
+              'RABBITMQ_EXCHANGE',
+              'al-mizan.events',
+            ),
             exchangeType: 'topic',
           },
         }),

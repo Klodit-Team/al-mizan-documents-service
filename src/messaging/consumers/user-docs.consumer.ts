@@ -32,22 +32,24 @@ export class UserDocsConsumer {
   private readonly logger = new Logger(UserDocsConsumer.name);
 
   @EventPattern('user.organisation.documents.upload.response')
-  async handleUploadResponse(@Payload() payload: UserDocsResponse) {
+  handleUploadResponse(@Payload() payload: UserDocsResponse) {
     this.logSummary(payload);
   }
 
   @EventPattern('user.organisation.documents.uploaded')
-  async handleUploaded(@Payload() payload: UserDocsResponse) {
+  handleUploaded(@Payload() payload: UserDocsResponse) {
     this.logSummary(payload);
   }
 
   @EventPattern('user.organisation.documents.upload.failed')
-  async handleUploadFailed(@Payload() payload: UserDocsResponse) {
+  handleUploadFailed(@Payload() payload: UserDocsResponse) {
     this.logSummary(payload);
   }
 
   private logSummary(payload: UserDocsResponse) {
-    const refs = payload.uploaded_documents.map((d) => d.document_id ?? d.storage_key ?? d.url);
+    const refs = payload.uploaded_documents.map(
+      (d) => d.document_id ?? d.storage_key ?? d.url,
+    );
     this.logger.log(
       `ACK received — correlation_id=${payload.correlation_id} organisation_id=${payload.organisation_id} status=${payload.status} references_processed=${JSON.stringify(refs)}`,
     );

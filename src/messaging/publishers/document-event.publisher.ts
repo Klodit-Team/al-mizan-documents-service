@@ -17,7 +17,10 @@ export class DocumentEventPublisher {
   // Events for compatibility with users-service (organisation flow)
   // routing keys used by users-service must be exact strings below.
   // =========================================================
-  async publishOrganisationDocumentsUploaded(payload: any) {
+  async publishOrganisationDocumentsUploaded(payload: {
+    organisation_id: string;
+    [key: string]: any;
+  }) {
     this.logger.log(
       `Publishing event: documentation.organisation.documents.uploaded for organisation ${payload.organisation_id}`,
     );
@@ -28,7 +31,10 @@ export class DocumentEventPublisher {
     );
   }
 
-  async publishOrganisationDocumentsFailed(payload: any) {
+  async publishOrganisationDocumentsFailed(payload: {
+    organisation_id: string;
+    [key: string]: any;
+  }) {
     this.logger.log(
       `Publishing event: documentation.organisation.documents.failed for organisation ${payload.organisation_id}`,
     );

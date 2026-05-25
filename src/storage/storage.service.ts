@@ -71,7 +71,9 @@ export class StorageService implements OnModuleInit {
         `❌ Impossible d'initialiser le bucket MinIO: ${(error as Error).message}`,
       );
       this.storageReady = false;
-      this.logger.warn('Service documents demarre en mode degrade (MinIO indisponible)');
+      this.logger.warn(
+        'Service documents demarre en mode degrade (MinIO indisponible)',
+      );
     }
   }
 

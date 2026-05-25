@@ -85,7 +85,10 @@ export class DocumentsService {
           });
         }
       } catch (e) {
-        this.logger.warn('Impossible de publier l\'événement de doublon: ' + (e as Error).message);
+        this.logger.warn(
+          "Impossible de publier l'événement de doublon: " +
+            (e as Error).message,
+        );
       }
 
       throw new ConflictException(
@@ -95,7 +98,9 @@ export class DocumentsService {
 
     // Validation pour les uploads d'organisation : documentType obligatoire
     if (uploadDto.ownerType === 'ORGANISATION' && !uploadDto.documentType) {
-      throw new BadRequestException('documentType est requis pour les uploads ORGANISATION');
+      throw new BadRequestException(
+        'documentType est requis pour les uploads ORGANISATION',
+      );
     }
 
     const fileUuid = uuidv4();
@@ -134,7 +139,10 @@ export class DocumentsService {
           });
         }
       } catch (e) {
-        this.logger.warn('Impossible de publier l\'événement d\'échec upload: ' + (e as Error).message);
+        this.logger.warn(
+          "Impossible de publier l'événement d'échec upload: " +
+            (e as Error).message,
+        );
       }
 
       throw new InternalServerErrorException(
@@ -183,7 +191,9 @@ export class DocumentsService {
           });
         }
       } catch (e) {
-        this.logger.warn('Impossible de publier l\'événement uploaded: ' + (e as Error).message);
+        this.logger.warn(
+          "Impossible de publier l'événement uploaded: " + (e as Error).message,
+        );
       }
     } catch {
       this.logger.error(
@@ -212,7 +222,10 @@ export class DocumentsService {
           });
         }
       } catch (e) {
-        this.logger.warn('Impossible de publier l\'événement failed prisma: ' + (e as Error).message);
+        this.logger.warn(
+          "Impossible de publier l'événement failed prisma: " +
+            (e as Error).message,
+        );
       }
 
       throw new InternalServerErrorException(

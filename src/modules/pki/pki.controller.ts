@@ -20,13 +20,15 @@ export class PkiController {
   @ApiResponse({
     status: 200,
     description: 'Certificat cryptographique analysé avec succès.',
-    type: PkiVerificationResponse
+    type: PkiVerificationResponse,
   })
   @ApiResponse({
     status: 400,
     description: 'Aucune signature Pades trouvée dans les octets',
   })
-  async verifyCertificate(@Param('id', ParseUUIDPipe) id: string): Promise<PkiVerificationResponse> {
+  async verifyCertificate(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<PkiVerificationResponse> {
     return this.pkiService.verifyCertificate(id);
   }
 }

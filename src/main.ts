@@ -128,7 +128,10 @@ async function bootstrap() {
       logger.log('RabbitMQ microservices started');
     })
     .catch((error) => {
-      logger.error('RabbitMQ microservices failed to start; HTTP API remains available', error?.stack);
+      logger.error(
+        'RabbitMQ microservices failed to start; HTTP API remains available',
+        (error as Error)?.stack,
+      );
     });
 
   logger.log(`🚀 Document Service démarré sur le port ${port}`);

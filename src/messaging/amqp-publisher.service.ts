@@ -1,11 +1,16 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import * as amqp from 'amqplib';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
+import { ChannelModel, Channel, connect } from 'amqplib';
 
 @Injectable()
 export class AmqpPublisherService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AmqpPublisherService.name);
-  private connection?: amqp.Connection;
-  private channel?: amqp.Channel;
+  private connection?: ChannelModel;
+  private channel?: Channel;
 
   private getExchange(): string {
     return process.env.RABBITMQ_EXCHANGE || 'al-mizan.events';
@@ -14,21 +19,28 @@ export class AmqpPublisherService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     const url = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
     try {
-      this.connection = await amqp.connect(url);
+      this.connection = await connect(url);
       this.channel = await this.connection.createChannel();
       const exchange = this.getExchange();
       await this.channel.assertExchange(exchange, 'topic', { durable: true });
-      this.logger.log(`AMQP publisher connected and exchange asserted: ${exchange}`);
+      this.logger.log(
+        `AMQP publisher connected and exchange asserted: ${exchange}`,
+      );
     } catch (err) {
-      this.logger.error('Failed to initialize AMQP publisher', (err as Error).message);
+      this.logger.error(
+        'Failed to initialize AMQP publisher',
+        (err as Error).message,
+      );
       this.logger.warn('Continuing without AMQP publisher (degraded mode)');
     }
   }
 
-  async publish(routingKey: string, payload: any) {
+  publish(routingKey: string, payload: any): Promise<boolean> {
     if (!this.channel) {
-      this.logger.warn(`AMQP channel unavailable. Skipping publish for ${routingKey}`);
-      return false;
+      this.logger.warn(
+        `AMQP channel unavailable. Skipping publish for ${routingKey}`,
+      );
+      return Promise.resolve(false);
     }
 
     const exchange = this.getExchange();
@@ -42,14 +54,14 @@ export class AmqpPublisherService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Channel returned false while publishing ${routingKey}`);
     }
     this.logger.log(`Published ${routingKey} to exchange ${exchange}`);
-    return ok;
+    return Promise.resolve(ok);
   }
 
   async onModuleDestroy() {
     try {
       await this.channel?.close();
       await this.connection?.close();
-    } catch (err) {
+    } catch {
       this.logger.warn('Error while closing AMQP publisher connection');
     }
   }

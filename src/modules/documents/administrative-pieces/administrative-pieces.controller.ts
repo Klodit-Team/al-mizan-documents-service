@@ -11,7 +11,11 @@ import { ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
 import { AdministrativePiecesService } from './administrative-pieces.service';
 import { AttachPieceDto } from './dto/attach-piece.dto';
 import { ValidatePieceDto } from './dto/validate-piece.dto';
-import { PieceAdministrative, AttachPieceResponse, ValidatePieceResponse } from './entities/piece-administrative.entity';
+import {
+  PieceAdministrative,
+  AttachPieceResponse,
+  ValidatePieceResponse,
+} from './entities/piece-administrative.entity';
 
 @ApiTags('Pièces Administratives')
 @Controller('documents/administrative')
@@ -32,7 +36,7 @@ export class AdministrativePiecesController {
   @ApiResponse({
     status: 201,
     description: 'La pièce a été rattachée avec succès.',
-    type: AttachPieceResponse
+    type: AttachPieceResponse,
   })
   async attachPiece(
     @Param('submissionId', ParseUUIDPipe) submissionId: string,
@@ -56,7 +60,7 @@ export class AdministrativePiecesController {
   @ApiResponse({
     status: 200,
     description: 'Liste des pièces avec leurs documents physiques.',
-    type: [PieceAdministrative]
+    type: [PieceAdministrative],
   })
   async getPiecesBySubmission(
     @Param('submissionId', ParseUUIDPipe) submissionId: string,
@@ -76,7 +80,7 @@ export class AdministrativePiecesController {
   @ApiResponse({
     status: 200,
     description: 'Le statut de la pièce a été mis à jour.',
-    type: ValidatePieceResponse
+    type: ValidatePieceResponse,
   })
   async validatePiece(
     @Param('pieceId', ParseUUIDPipe) pieceId: string,

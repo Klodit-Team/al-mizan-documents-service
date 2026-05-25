@@ -42,7 +42,8 @@ export class UploadDocumentDto {
   ownerType: OwnerType;
 
   @ApiProperty({
-    description: "Type du document d'organisation (NIF | NIS | DENOMINATION). Obligatoire si ownerType = ORGANISATION",
+    description:
+      "Type du document d'organisation (NIF | NIS | DENOMINATION). Obligatoire si ownerType = ORGANISATION",
     enum: OrganisationDocumentType,
     required: false,
   })
