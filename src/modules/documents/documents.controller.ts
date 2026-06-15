@@ -167,6 +167,32 @@ export class DocumentsController {
     return this.documentsService.getPresignedUrl(id);
   }
 
+  @Get(':id/ocr')
+  @ApiOperation({
+    summary: '[DOC-OCR] Récupérer le résultat OCR mis en cache pour un document',
+    description:
+      "Retourne le dernier résultat d'analyse OCR/NLP stocké pour ce document (texte extrait, score de confiance, conformité, anomalies). Retourne null pour chaque champ si aucune analyse n'a encore été effectuée.",
+  })
+  @ApiParam({ name: 'id', description: 'UUID du document', type: String, format: 'uuid' })
+  @ApiResponse({
+    status: 200,
+    description: 'Résultat OCR récupéré (ou null si pas encore analysé).',
+    schema: {
+      type: 'object',
+      properties: {
+        texteExtrait: { type: 'string', nullable: true },
+        scoreConfiance: { type: 'number', nullable: true },
+        isConforme: { type: 'boolean', nullable: true },
+        anomalies: { type: 'array', nullable: true },
+        analysedAt: { type: 'string', format: 'date-time', nullable: true },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Document introuvable.' })
+  async getOcrResult(@Param('id', ParseUUIDPipe) id: string) {
+    return this.documentsService.getOcrResult(id);
+  }
+
   @Get(':id/integrity')
   @ApiOperation({
     summary: "[DOC-09] Vérifier l'intégrité SHA-256 d'un document",

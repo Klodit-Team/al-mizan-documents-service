@@ -370,6 +370,45 @@ export class DocumentsService {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // [DOC-OCR] Résultat OCR mis en cache pour un document
+  // ─────────────────────────────────────────────────────────────
+  async getOcrResult(documentId: string): Promise<{
+    texteExtrait: string | null;
+    scoreConfiance: number | null;
+    isConforme: boolean | null;
+    anomalies: unknown[] | null;
+    analysedAt: Date | null;
+  }> {
+    const doc = await this.prisma.document.findUnique({ where: { id: documentId } });
+    if (!doc) {
+      throw new NotFoundException(`Document introuvable (id: ${documentId})`);
+    }
+
+    const analyse = await this.prisma.ocrAnalyse.findFirst({
+      where: { documentId },
+      orderBy: { analysedAt: 'desc' },
+    });
+
+    if (!analyse) {
+      return {
+        texteExtrait: null,
+        scoreConfiance: null,
+        isConforme: null,
+        anomalies: null,
+        analysedAt: null,
+      };
+    }
+
+    return {
+      texteExtrait: analyse.texteExtrait ?? null,
+      scoreConfiance: analyse.scoreConfiance ? Number(analyse.scoreConfiance) : null,
+      isConforme: analyse.isConforme ?? null,
+      anomalies: Array.isArray(analyse.anomalies) ? (analyse.anomalies as unknown[]) : null,
+      analysedAt: analyse.analysedAt,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // Méthodes privées
   // ─────────────────────────────────────────────────────────────
   private computeSha256(buffer: Buffer): string {

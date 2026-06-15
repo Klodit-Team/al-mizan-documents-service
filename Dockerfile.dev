@@ -1,0 +1,10 @@
+FROM node:18-alpine
+RUN apk add --no-cache openssl
+WORKDIR /app
+COPY package*.json ./
+COPY prisma ./prisma/
+RUN npm install --legacy-peer-deps
+RUN npx prisma generate
+EXPOSE 8005
+ENV NODE_ENV=development
+CMD ["sh", "-c", "npx prisma db push --skip-generate 2>/dev/null || true && npm run start:dev"]
