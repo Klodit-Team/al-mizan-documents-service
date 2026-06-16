@@ -71,6 +71,10 @@ export class AdministrativePiecesService {
       submissionId: submissionId,
     });
 
+    await this.documentEventPublisher.publishAiAdministrativeAttached({
+      submissionId: submissionId,
+    });
+
     return {
       message: 'Pièce administrative rattachée avec succès',
       piece: newPiece,

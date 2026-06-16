@@ -107,4 +107,13 @@ export class DocumentEventPublisher {
     );
     await lastValueFrom(this.client.emit('document.validated', payload));
   }
+
+  async publishAiAdministrativeAttached(payload: { submissionId: string }) {
+    this.logger.log(
+      `Publishing event: document.administrative.attached (AI) for submission ${payload.submissionId}`,
+    );
+    await lastValueFrom(
+      this.client.emit('document.administrative.attached', payload),
+    );
+  }
 }
